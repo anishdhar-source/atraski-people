@@ -621,7 +621,7 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
             <label class="f" id="rqStartWrap" hidden>Leaving at<input type="time" id="rqStart" value="16:00"></label>
             <label class="f" id="rqEndWrap" hidden>Back by / until<input type="time" id="rqEnd" value="18:00"></label>
           </div>
-          <label class="chk" id="rqCertWrap" hidden><input type="checkbox" id="rqCert"> I'll give HR a medical certificate (needed for more than 2 sick days in a row)</label>
+          <label class="chk" id="rqCertWrap" hidden><input type="checkbox" id="rqCert"> I'll give HR a medical certificate (needed for 2 or more sick days)</label>
           <label class="f">Reason<textarea id="rqReason" placeholder="Doctor's appointment, family function, client visit…"></textarea></label>
           <div class="stack" style="gap:6px"><div id="rqChecks" class="flags"></div><div class="muted" id="rqHint" style="font-size:12px"></div></div>
           <div class="row" style="justify-content:flex-end"><button class="btn primary" id="rqSubmit" type="submit">Send request</button></div>
@@ -641,7 +641,7 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
         <dl class="kv" id="myProfile"></dl>
       </div>
       <div class="panel stack">
-        <div><span class="eyebrow">Atraski SOP · FY 2026-27</span><h2>Rules at a glance</h2></div>
+        <div><span class="eyebrow">ATR-HR-02 · 03 · 04 · v3.0</span><h2>Rules at a glance</h2></div>
         <ul class="rules" id="rulesList"></ul>
       </div>
     </div>
@@ -673,7 +673,8 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
           <select id="rpCompany" aria-label="Company" style="width:auto"><option value="">All companies</option><option>Atraski</option><option>At Buzz</option></select>
           <input type="month" id="rpMonth" aria-label="Month" style="width:auto">
           <button class="btn sm" id="rpRefresh" type="button">Refresh</button>
-          <button class="btn sm primary" id="rpCsv" type="button">Download CSV</button>
+          <button class="btn sm" id="rpPunch" type="button">Download punch log</button>
+          <button class="btn sm primary" id="rpCsv" type="button">Download summary CSV</button>
         </div>
       </div>
       <div class="tbl-wrap"><table style="min-width:1100px">
@@ -771,33 +772,6 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
         <div class="fgrid"><label class="f">Title<input id="docTitle"></label><label class="f">Category<select id="docCat"><option>Policies</option><option>SOPs</option><option>Templates</option><option>Other</option></select></label><label class="f">Link<input id="docUrl" placeholder="https://docs.google.com/…"></label></div>
         <div class="row"><button class="btn" id="docAdd" type="button">Add document</button></div>
       </div>
-    </div>
-  </section>
-
-  <!-- DAILY REPORT -->
-  <section id="v-reports" class="stack" hidden>
-    <div class="grid-2">
-      <div class="panel stack">
-        <div class="row between"><div><span class="eyebrow">End of day</span><h2>Daily report</h2></div><input type="date" id="repDate" aria-label="Report date" style="width:auto"></div>
-        <div id="repStatus"></div>
-        <div class="stack" id="repTasks" style="gap:8px"></div>
-        <div><button class="btn sm" id="repAdd" type="button">+ Add task</button></div>
-        <label class="f">Blockers or help needed<textarea id="repBlockers" placeholder="Waiting on client approval for the reel script…"></textarea></label>
-        <label class="f">Plan for tomorrow<textarea id="repTomorrow" placeholder="Publish 3 posts, start the December calendar…"></textarea></label>
-        <div class="row between"><span class="muted" id="repHint" style="font-size:12px"></span><button class="btn primary" id="repSubmit" type="button">Submit report</button></div>
-      </div>
-      <div class="panel stack">
-        <div><span class="eyebrow">This month</span><h2>My reports</h2></div>
-        <div class="list" id="repMine"></div>
-      </div>
-    </div>
-    <div class="panel stack" id="repTeamPanel" hidden>
-      <div class="row between"><div><span class="eyebrow" id="repTeamEyebrow">Team</span><h2>Team reports</h2></div>
-        <div class="row"><input type="date" id="repTeamDate" aria-label="Day" style="width:auto"><button class="btn sm" id="repTeamRefresh" type="button">Refresh</button></div></div>
-      <div class="row" id="repTeamCounts"></div>
-      <div class="list" id="repTeamList"></div>
-      <div><span class="eyebrow">Hours by client this month</span></div>
-      <div class="tbl-wrap"><table style="min-width:420px"><thead><tr><th>Client / project</th><th>Hours</th><th>People</th></tr></thead><tbody id="repClients"></tbody></table></div>
     </div>
   </section>
 
@@ -904,20 +878,20 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
       <div><span class="eyebrow">Late coming</span></div>
       <div class="fgrid">
         <label class="f">Late marks per deduction<input type="number" min="1" id="pLateN"></label>
-        <label class="f">Deduction (days)<input type="number" min="0" step="0.5" id="pLateD"></label>
-        <label class="f">Written warning at<input type="number" min="1" id="pLateW"></label>
+        <label class="f">Deduction (days, 0 under v3.0)<input type="number" min="0" step="0.5" id="pLateD"></label>
+        <label class="f">Written reminder at (late marks)<input type="number" min="1" id="pLateW"></label>
       </div>
     </div>
     <div class="grid-2">
       <div class="panel stack">
-        <div><span class="eyebrow">Per financial year</span><h2>Leave</h2></div>
+        <div><span class="eyebrow">Per leave year (January–December)</span><h2>Leave</h2></div>
         <div class="fgrid">
-          <label class="f">Earned (employees)<input type="number" min="0" id="pqEl"></label>
-          <label class="f">Casual<input type="number" min="0" id="pqCl"></label>
-          <label class="f">Sick<input type="number" min="0" id="pqSl"></label>
-          <label class="f">Emergency<input type="number" min="0" id="pqEm"></label>
-          <label class="f">Intern CL (3-month)<input type="number" min="0" id="pqI3"></label>
-          <label class="f">Intern CL (6-month)<input type="number" min="0" id="pqI6"></label>
+          <label class="f">Earned leave (after 12 months)<input type="number" min="0" id="pqEl"></label>
+          <label class="f">Casual / sick (confirmed)<input type="number" min="0" id="pqCl"></label>
+          <label class="f">Casual / sick in probation<input type="number" min="0" id="pqSl"></label>
+          <label class="f">Bereavement<input type="number" min="0" id="pqEm"></label>
+          <label class="f">Intern CL/SL (3-month)<input type="number" min="0" id="pqI3"></label>
+          <label class="f">Intern CL/SL (6-month)<input type="number" min="0" id="pqI6"></label>
           <label class="f">Max EL carried forward<input type="number" min="0" id="pElCarry"></label>
           <label class="f">Notice for leave (hours)<input type="number" min="0" id="pNotice"></label>
           <label class="f">Reason needed above (days)<input type="number" min="1" id="pConsec"></label>
@@ -932,9 +906,9 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
       <div class="panel stack">
         <div><span class="eyebrow">Work from home</span><h2>WFH</h2></div>
         <div class="fgrid">
-          <label class="f">Max WFH days per week<input type="number" min="0" id="pWfhMax"></label>
+          <label class="f">WFH days per month<input type="number" min="0" id="pWfhMax"></label>
           <label class="f">Notice (hours)<input type="number" min="0" id="pWfhNotice"></label>
-          <label class="f">Months at Atraski before WFH<input type="number" min="0" id="pWfhMonths"></label>
+          <label class="f">Combined WFH per quarter<input type="number" min="0" id="pWfhMonths"></label>
           <label class="f">No WFH in first (days)<input type="number" min="0" id="pWfhFirst"></label>
         </div>
         <div><span class="eyebrow">Days WFH is allowed</span></div>
@@ -1187,17 +1161,22 @@ const DEPTS = [...new Set(POS.map(p => p.dept))];
 const posInfo = name => POS.find(p => p.pos === name) || null;
 const ETYPE = { employee:"Full-time employee", trainee:"Trainee", intern:"Intern" };
 
-// ---------- policy (SOP – Attendance, Leave & WFH Policy, FY 2026-27) ----------
-const DEF = { flexFrom:"09:00", flexTo:"11:00", grace:15, fullHours:8, halfHours:4, weekOff:[0], altSat:true,
-  lateEvery:3, lateDeduct:0.5, lateWarn:5,
-  quota:{ el:12, cl:6, sl:6, emergency:3 }, internCL3:4, internCL6:6, elCarryMax:6, noticeHours:48, consecReason:3, certAfter:2,
-  shortPerMonth:2, shortMaxMins:120,
+// ---------- policy: ATR-HR-02 (hours & attendance), ATR-HR-03 (leave & LOP), ATR-HR-04 (WFH) · v3.0, effective 23 Oct 2026 ----------
+const DEF = { policyVersion:3, flexFrom:"09:30", flexTo:"11:00", grace:1, fullHours:8, halfHours:4, weekOff:[0], altSat:true,
+  lateEvery:3, lateDeduct:0, lateWarn:3,
+  quota:{ el:15, cl:12, sl:0, emergency:0, bereavement:3 }, internCL3:3, internCL6:6, provCL:6, probMonths:6, elAfterMonths:12, elCarryMax:45, elNoticeDays:15, elMaxRun:5,
+  clMaxRun:2, firstDaysNoLeave:14, noticeHours:0, consecReason:2, certAfter:1,
+  shortPerMonth:2, shortMaxMins:60, wfhPerMonth:1, wfhPerQuarter:3, wfhPerHalf:6, wfhPoolNoticeDays:7, wfhHalfNoticeDays:15, uwfhPenalty:false,
   offices:[{ id:"del", n:"Delhi office · Chittaranjan Park" }, { id:"kol", n:"Kolkata office · West Kamalapur" }, { id:"mum", n:"Mumbai office" }],
-  wfhDays:[3], wfhMaxWeek:2, wfhNoticeHours:24, wfhMinMonths:3, wfhFirstDays:30,
+  wfhDays:[1,2,3,4,5,6], wfhMaxWeek:6, wfhNoticeHours:48, wfhMinMonths:0, wfhFirstDays:14,
   holidays:[], optional:[], optionalPerYear:2, optionalNoticeDays:7,
   payBasis:"working", tePreDays:3, teClaimDays:7, teAirDays:7, teCab:500, teAuto:200, teHotel:3000 };
 let P = clone(DEF);
-const LT = { el:"Earned leave (EL)", cl:"Casual leave (CL)", sl:"Sick leave (SL)", emergency:"Emergency leave", maternity:"Maternity leave", unpaid:"Unpaid leave (LWP)" };
+const LT = { cl:"Casual / sick leave (CL/SL)", sl:"Sick leave (from CL/SL)", el:"Earned leave (EL)", bereavement:"Bereavement leave", emergency:"Emergency leave", maternity:"Maternity leave", unpaid:"Leave without pay (LWP)" };
+const pool = t => (t === "sl" || t === "emergency") ? "cl" : t;   // v3.0: casual and sick leave are one pool
+const lyStart = ds => `${ds.slice(0,4)}-01-01`, lyEnd = ds => `${ds.slice(0,4)}-12-31`;   // leave year = calendar year (ATR-HR-03 §2)
+const mIncl = (a, b) => a > b ? 0 : (+b.slice(0,4) - +a.slice(0,4)) * 12 + (+b.slice(5,7) - +a.slice(5,7)) + 1;
+const addMonthsD = (ds, n) => { const d = parseD(ds); d.setMonth(d.getMonth() + n); return ymd(d); };
 const LEG = { casual:"cl", sick:"sl", earned:"el" };
 const lt = r => LEG[r.type] || r.type;
 const isLeave = r => r.kind === "full" || r.kind === "half";
@@ -1223,7 +1202,7 @@ function loadPolicy(data){
   const d = clone(data) || {};
   const q = d.quota || {};
   for (const [o, n] of Object.entries(LEG)) if (q[o] != null && q[n] == null) q[n] = q[o];
-  P = { ...clone(DEF), ...d, quota: { ...DEF.quota, el:q.el ?? DEF.quota.el, cl:q.cl ?? DEF.quota.cl, sl:q.sl ?? DEF.quota.sl, emergency:q.emergency ?? DEF.quota.emergency } };
+  P = { ...clone(DEF), ...d, quota: { ...DEF.quota, ...q } };
   if (!P.flexTo && d.start) P.flexTo = d.start;
 }
 
@@ -1284,39 +1263,41 @@ function stageText(r){
 
 // ---------- entitlement & balances ----------
 function entitlement(id){
-  const p = person(id), et = etypeOf(id);
-  if (et === "intern") return { cl: Number(p.tenure) === 3 ? Number(P.internCL3) : Number(P.internCL6) };
-  if (et === "trainee") return { cl: Number(P.quota.cl), sl: Number(P.quota.sl) };
-  const fy0 = fyStart(S.today), j = joinOf(id), start = j && j > fy0 ? j : fy0;
-  const months = start > S.today ? 0 : (+S.today.slice(0,4) - +start.slice(0,4)) * 12 + (+S.today.slice(5,7) - +start.slice(5,7)) + 1;
-  const el = Math.min(Number(P.quota.el), months * Number(P.quota.el) / 12) + Math.min(Number(p.elCarry) || 0, Number(P.elCarryMax));
-  return { el, cl: Number(P.quota.cl), sl: Number(P.quota.sl), emergency: Number(P.quota.emergency) };
+  const p = person(id), et = etypeOf(id), j = joinOf(id), today = S.today, ys = lyStart(today), ber = Number(P.quota.bereavement ?? 3);
+  if (et === "intern") { const tot = Number(p.tenure) === 3 ? Number(P.internCL3) : Number(P.internCL6); return { cl: Math.min(tot, j ? mIncl(j, today) : tot), bereavement: ber }; }
+  const start = j && j > ys ? j : ys, credit = Math.min(Number(P.quota.cl), mIncl(start, today));   // 1 day a month
+  if (et === "trainee") return { cl: credit, bereavement: ber };
+  if (isProvisional(id)) return { cl: Math.min(Number(P.provCL), mIncl(j, today)), bereavement: ber };
+  const out = { cl: credit, bereavement: ber };
+  const elFrom = j ? addMonthsD(j, Number(P.elAfterMonths)) : null;   // EL only after 12 months, 1.25 a month from month 13
+  if (!elFrom || elFrom <= today) out.el = Math.min(Number(P.quota.el), mIncl(!elFrom || elFrom < ys ? ys : elFrom, today) * Number(P.quota.el) / 12) + Math.min(Number(p.elCarry) || 0, Number(P.elCarryMax));
+  return out;
 }
-function leaveUsed(id){
-  const used = {}, pend = {}, fy0 = fyStart(S.today), fy1 = fyEnd(S.today);
+function isProvisional(id){ const j = joinOf(id); return etypeOf(id) === "employee" && !!j && monthsBetween(j, S.today) < Number(P.probMonths); }
+function isConfirmed(id){ return etypeOf(id) === "employee" && !isProvisional(id); }
+function leaveUsed(id, skipDebit){
+  const used = {}, pend = {}, y0 = lyStart(S.today), y1 = lyEnd(S.today);
   for (const r of reqList(rootOf(id), decOf(id))) {
     if (!isLeave(r) || (r.status !== "approved" && r.status !== "pending")) continue;
-    const t = lt(r), bucket = r.status === "approved" ? used : pend, days = leaveDays(r), paid = paidOf(r);
-    days.forEach((ds, i) => { if (ds >= fy0 && ds <= fy1) { const amt = r.kind === "half" ? Math.min(.5, paid) : (i < paid ? 1 : 0); bucket[t] = (bucket[t]||0) + amt; } });
+    const t = pool(lt(r)), bucket = r.status === "approved" ? used : pend, days = leaveDays(r), paid = paidOf(r);
+    days.forEach((ds, i) => { if (ds >= y0 && ds <= y1) { const amt = r.kind === "half" ? Math.min(.5, paid) : (i < paid ? 1 : 0); bucket[t] = (bucket[t]||0) + amt; } });
   }
+  // short-day hours taken from leave when a pay run was locked (ATR-HR-02 §4)
+  for (const [k, v] of Object.entries(decOf(id) || {})) if (k.startsWith("debit_") && k !== skipDebit && k.slice(6, 10) === y0.slice(0, 4) && v) { used.cl = (used.cl||0) + (Number(v.cl)||0); used.el = (used.el||0) + (Number(v.el)||0); }
   return { used, pend };
 }
+function leaveLeft(id, skipDebit){ const ent = entitlement(id), { used, pend } = leaveUsed(id, skipDebit), f = t => Math.max(0, (ent[t]||0) - (used[t]||0) - (pend[t]||0)); return { cl: f("cl"), el: ent.el != null ? f("el") : 0 }; }
 
 // ---------- WFH ----------
 function wfhBlock(id, ds){
-  const p = person(id);
-  if (!p.wfhOk) {
-    if (etypeOf(id) === "intern") return "Interns aren't eligible for WFH unless HR approves it.";
-    const j = joinOf(id);
-    if (j) {
-      if ((parseD(ds) - parseD(j)) / 864e5 < Number(P.wfhFirstDays)) return `No WFH in the first ${P.wfhFirstDays} days after joining.`;
-      if (monthsBetween(j, ds) < Number(P.wfhMinMonths)) return `WFH opens after ${P.wfhMinMonths} months at Atraski.`;
-    }
-    const pe = probEndOf(id); if (pe && ds <= pe) return `No WFH during probation (until ${dLong(pe)}) unless HR and the Director approve it.`;
-  }
+  const p = person(id), j = joinOf(id);
+  if (p.wfhSuspended) return "WFH is suspended for you right now (ATR-HR-04 §6).";
+  if (j && (parseD(ds) - parseD(j)) / 864e5 < Number(P.wfhFirstDays)) return `No WFH in the first ${P.wfhFirstDays} days: it's the in-person training phase.`;
   return null;
 }
-const wfhWeekCount = (id, ds) => live(rootOf(id), decOf(id)).filter(r => r.kind === "wfh" && weekStart(r.from) === weekStart(ds)).length;
+const wfhCount = (id, pred) => live(rootOf(id), decOf(id)).filter(r => r.kind === "wfh" && pred(r.from)).length;
+const qKey = ds => ds.slice(0,4) + "Q" + Math.ceil(+ds.slice(5,7) / 3), hKey = ds => ds.slice(0,4) + "H" + (+ds.slice(5,7) <= 6 ? 1 : 2);
+const wfhMonthCount = (id, ds) => wfhCount(id, d => ymOf(d) === ymOf(ds));
 
 // ---------- day evaluation ----------
 function worked(rec, now){ let t = 0; for (const s of (rec && rec.s) || []) { if (s.o) t += s.o - s.i; else if (now) t += now - s.i; } return t; }
@@ -1327,7 +1308,7 @@ function evalDay(ds, rec, appr, joined){
   const anyWfh = sess.some(s => s.m === "wfh");
   const mode = has ? (sess.every(s => s.m === "wfh") ? "wfh" : "office") : null;
   let late = false;
-  if (has && !off) { const st = parseD(ds); st.setHours(0, lateAfterMin(), 0, 0); late = Math.min(...sess.map(s => s.i)) > st.getTime(); }
+  if (has && !off) { const st = parseD(ds); st.setHours(0, lateAfterMin(), 0, 0); late = Math.min(...sess.map(s => s.i)) >= st.getTime(); }
   const lv = appr.find(r => isLeave(r) && r.from <= ds && (r.kind === "half" ? r.from : (r.to || r.from)) >= ds);
   const opt = appr.find(r => r.kind === "optional" && r.from === ds);
   const sl = appr.find(r => r.kind === "short" && r.from === ds);
@@ -1355,8 +1336,9 @@ function evalDay(ds, rec, appr, joined){
   const hrs = ms / 36e5;
   if (hrs >= need - 0.001) return { ...base, code: uwfh ? "uwfh" : mode, label: uwfh ? "WFH · unapproved" : mode === "wfh" ? "WFH" : "Office", worked:1 };
   if (isToday) return { ...base, code:"out", label:"Punched out" };
-  if (hrs >= Number(P.halfHours)) return { ...base, code:"half", label:"Half day", worked:.5 };
-  return { ...base, code:"under", label:"Under hours", worked:.5 };
+  // short of 8 hours without approval: the shortfall becomes ½ day of leave, or LOP if there's no balance (settled for the month in summarize)
+  if (hrs >= Number(P.halfHours)) return { ...base, code:"half", label:"Early exit · ½ day", worked:.5, debit:.5 };
+  return { ...base, code:"under", label:"Half day (under 4h)", worked:.5, debit:.5 };
 }
 function summarize(ym, doc, id){
   const root = rootOf(id), appr = approved(root, decOf(id)), n = daysIn(ym), joined = joinOf(id);
@@ -1377,8 +1359,11 @@ function summarize(ym, doc, id){
     o.lwp += e.lwp || 0;
     if (e.late) o.late++;
     if (e.ms > 0 && !e.open) { o.ms += e.ms; o.msDays++; }
+    if (e.debit) o.debit = (o.debit || 0) + e.debit;
   }
-  o.uwfhLwp = Math.max(0, o.uwfh - 1) * .5;
+  o.debit = o.debit || 0; o.debitCl = 0; o.debitEl = 0; o.debitLop = 0;
+  if (o.debit) { const left = leaveLeft(id, `debit_${ym}`); o.debitCl = Math.min(o.debit, left.cl); o.debitEl = Math.min(o.debit - o.debitCl, left.el); o.debitLop = o.debit - o.debitCl - o.debitEl; o.lwp += o.debitLop; }
+  o.uwfhLwp = P.uwfhPenalty ? Math.max(0, o.uwfh - 1) * .5 : 0;
   o.lwp += o.uwfhLwp;
   o.lateDeduct = Math.floor(o.late / Number(P.lateEvery || 3)) * Number(P.lateDeduct);
   const baseLoc = baseOf(id);
@@ -1387,9 +1372,10 @@ function summarize(ym, doc, id){
   o.short = appr.filter(r => r.kind === "short" && ymOf(r.from) === ym).length;
   o.present = o.days.filter(e => e.worked === 1).length;
   o.flags = [];
-  if (o.late >= Number(P.lateWarn)) o.flags.push({ t:"Written warning: habitual late coming", red:true });
+  if (o.late >= Number(P.lateWarn)) o.flags.push({ t:`Written reminder due: ${o.late} late marks (ATR-HR-02)`, red:true });
+  if (o.debit) o.flags.push({ t:`Short days ${num1(o.debit)}d → ${num1(o.debitCl + o.debitEl)} from leave${o.debitLop ? `, ${num1(o.debitLop)} LOP` : ""}`, red: o.debitLop > 0 });
   if (o.lateDeduct) o.flags.push({ t:`Late deduction ${num1(o.lateDeduct)} day` });
-  if (o.uwfh) o.flags.push({ t:`Unapproved WFH ×${o.uwfh}`, red: o.uwfh > 1 });
+  if (o.uwfh) o.flags.push({ t:`Unapproved WFH ×${o.uwfh} (conduct, ATR-HR-11)`, red:true });
   if (o.missed) o.flags.push({ t:`Missed punch ×${o.missed}` });
   return o;
 }
@@ -1539,30 +1525,30 @@ function renderReqs(){
     pend[t] ? h("div", { class:"meta muted", style:"font-size:12px", text: `${num1(pend[t])} pending` }) : null));
   const optUsed = live(S.root, S.dec).filter(r => r.kind === "optional" && r.from.slice(0,4) === S.today.slice(0,4)).length;
   cards.push(h("div", { class:"bal" }, h("div", { class:"eyebrow", text:"Optional holidays" }), h("b", { text: Math.max(0, P.optionalPerYear - optUsed) }), h("span", { class:"muted", text:` of ${P.optionalPerYear} left` })));
-  cards.push(h("div", { class:"bal" }, h("div", { class:"eyebrow", text:"WFH this week" }), h("b", { text: wfhWeekCount(S.uid, S.today) }), h("span", { class:"muted", text:` of ${P.wfhMaxWeek}` })));
+  cards.push(h("div", { class:"bal" }, h("div", { class:"eyebrow", text:"WFH this month" }), h("b", { text: wfhMonthCount(S.uid, S.today) }), h("span", { class:"muted", text:` of ${P.wfhPerMonth}` })));
   $("#balances").replaceChildren(...cards);
   // profile
   const p = person(S.uid), pi = posInfo(p.pos), mg = mgrOf(S.uid), pe = probEndOf(S.uid), wb = wfhBlock(S.uid, S.today);
   const kv = [["Employee code", p.code || "—"],["Company", companyOf(S.uid)],["Department", p.dept || (pi && pi.dept) || "—"],["Position", p.pos || "Not set yet"],
     ["Type", ETYPE[etypeOf(S.uid)] + (etypeOf(S.uid) === "intern" ? ` (${Number(p.tenure) === 3 ? 3 : 6}-month)` : "")],["Band", pi ? pi.band : "—"],
     ["Joined", joinOf(S.uid) ? dLong(joinOf(S.uid)) : "—"],["Probation", pe ? (pe >= S.today ? `until ${dLong(pe)}` : `completed ${dLong(pe)}`) : "—"],
-    ["Reports to", mg ? nameOf(mg) : "No manager set (admins approve)"],["WFH", wb || `Eligible · ${(P.wfhDays||[]).map(d => DOW_LONG[d]).join(", ") || "no days"}, up to ${P.wfhMaxWeek} a week`]];
+    ["Reports to", mg ? nameOf(mg) : "No manager set (admins approve)"],["WFH", wb || `${P.wfhPerMonth} day a month${isConfirmed(S.uid) ? `, or combine up to ${P.wfhPerQuarter} a quarter` : ""}`]];
   $("#myProfile").replaceChildren(...kv.flatMap(([k, v]) => [h("dt", { text:k }), h("dd", { text:v })]));
   fillTypeOptions();
   updateHint();
 }
 function renderRules(){
   const wo = (P.weekOff||[]).map(d => DOW_LONG[d]).join(", ");
-  const lateAt = (() => { const d = new Date(); d.setHours(0, lateAfterMin(), 0, 0); return tLabel(d.getTime()); })();
   const items = [
-    ["Hours: ", `punch in between ${t12(P.flexFrom)} and ${t12(P.flexTo)} (${P.grace} min grace, so late after ${lateAt}). A full day is ${P.fullHours} hours.`],
+    ["Hours (ATR-HR-02): ", `punch in by ${t12(P.flexTo)}; from ${t12(P.flexTo).replace(/00/, "01")} it's a late mark. Work ${P.fullHours} hours: earliest punch-out is your punch-in + ${P.fullHours} hours.`],
+    ["Late marks: ", `${P.lateWarn} in a month earn a written reminder. No pay is cut for late marks.`],
+    ["Short days: ", `leaving before ${P.fullHours} hours without approval is an early exit, and under ${P.halfHours} hours is a half day. Either becomes ½ day of leave, or LOP if you have no leave left. Use a short leave to avoid this.`],
+    ["Short leave: ", `${P.shortPerMonth} a month of 1 hour each, after your first 14 days, approved 24h ahead. At most 1 a week; you still work 7 hours that day.`],
     ["Working days: ", `${wo ? wo + " off" : "no weekly off"}${P.altSat ? ", plus the 2nd and 4th Saturday" : ""}, and the holidays on the calendar.`],
-    ["Late coming: ", `every ${P.lateEvery} late marks in a month cost ${num1(Number(P.lateDeduct))} day of leave (LWP if leave is used up). ${P.lateWarn} or more = written warning.`],
-    ["Leave per year: ", `EL ${P.quota.el} (employees, 1 a month), CL ${P.quota.cl}, SL ${P.quota.sl}, Emergency ${P.quota.emergency} (manager + HR approve). Trainees get CL + SL; interns get CL only (${P.internCL3} for 3 months, ${P.internCL6} for 6).`],
-    ["Applying: ", `at least ${P.noticeHours} hours ahead, except sick and emergency leave. Your manager decides within 24 hours. More than ${P.consecReason} days in a row needs a reason; more than ${P.certAfter} sick days needs a medical certificate.`],
-    ["LWP: ", "leave without approval, leave beyond your balance, and missed punches that aren't regularised. Up to " + P.elCarryMax + " unused EL carry over to the next financial year."],
-    ["WFH: ", `${(P.wfhDays||[]).map(d => DOW_LONG[d]).join(", ") || "no days"}, at most ${P.wfhMaxWeek} a week, approved ${P.wfhNoticeHours}h ahead. Only after ${P.wfhMinMonths} months; not in the first ${P.wfhFirstDays} days, during probation, or for interns unless HR allows. Unapproved WFH is flagged; from the 2nd in a month each costs half a day.`],
-    ["Short leave: ", `${P.shortPerMonth} a month, up to ${P.shortMaxMins} minutes each, with approval.`],
+    ["Leave (ATR-HR-03): ", `leave year is January–December. CL/SL: 1 a month (12 a year for confirmed staff; 6 in probation; interns 3 or 6). EL: 15 a year, only after 12 months of service. Bereavement: 3 days. No leave in the first ${P.firstDaysNoLeave} days.`],
+    ["Taking leave: ", `CL/SL at most ${P.clMaxRun} days in a row (1 day a month, not consecutive, for interns, trainees and provisional staff). Sick leave of 2+ days needs a certificate. EL: ${P.elNoticeDays} days' notice, max ${P.elMaxRun} days, once a quarter.`],
+    ["LOP: ", "only days not worked and not covered by leave: absence without approval, leave beyond your balance, approved LWP, short days with no leave left, and missed punches not regularised by the next working day."],
+    ["WFH (ATR-HR-04): ", `${P.wfhPerMonth} day a month, 2 working days ahead. Confirmed staff can combine up to ${P.wfhPerQuarter} in a quarter (7 working days ahead) or ${P.wfhPerHalf} in a half-year (15 days ahead, Business Head approves). Not in the first ${P.wfhFirstDays} days. Punch in and work 8 hours as usual.`],
     ["Holidays: ", `fixed holidays are on the calendar. Pick ${P.optionalPerYear} optional holidays a year, applied ${P.optionalNoticeDays} days ahead.`]];
   $("#rulesList").replaceChildren(...items.map(([b, t]) => h("li", null, h("b", { text:b }), t)));
 }
@@ -1579,9 +1565,6 @@ function renderBanners(){
     b.push(h("div", { class:"banner" }, h("span", null, "You didn't punch out on ", h("b", { text: dLabel(m.date) }), ` (in since ${tLabel(m.since)}). When did you stop? Until your manager approves this, the day counts as LWP.`),
       inp, h("button", { class:"btn primary sm", type:"button", onclick: () => fixMissed(m, inp.value), text:"Request regularisation" })));
   }
-  const tr = S.cur && S.cur.days && S.cur.days[S.today.slice(8)];
-  if (false)
-    b.push(h("div", { class:"banner" }, h("span", { text:"You haven't submitted today's daily report." }), h("a", { href:"#reports", class:"btn sm primary", style:"text-decoration:none", text:"Write it now" })));
   const host = $("#banners");
   if (host.querySelector("#fixTime") && m) return;
   host.replaceChildren(...b);
@@ -1591,7 +1574,7 @@ function renderBanners(){
 function fillTypeOptions(){
   const sel = $("#rqType"); if (document.activeElement === sel) return;
   const ent = entitlement(S.uid), { used, pend } = leaveUsed(S.uid), cur = sel.value;
-  const opts = Object.keys(ent).map(t => [t, `${LT[t]} · ${num1(Math.max(0, ent[t] - (used[t]||0) - (pend[t]||0)))} left`]);
+  const opts = Object.keys(ent).flatMap(t => { const left = `${num1(Math.max(0, ent[t] - (used[t]||0) - (pend[t]||0)))} left`; return t === "cl" ? [["cl", `Casual leave (CL/SL) · ${left}`], ["sl", `Sick leave (CL/SL) · ${left}`]] : [[t, `${LT[t]} · ${left}`]]; });
   if (etypeOf(S.uid) === "employee") opts.push(["maternity", LT.maternity]);
   opts.push(["unpaid", LT.unpaid]);
   sel.replaceChildren(...opts.map(([v, t]) => h("option", { value:v, text:t })));
@@ -1615,17 +1598,28 @@ function assess(){
     const r = { kind:k, from, to: k === "full" ? to : from, type:t }, len = leaveLen(r);
     out.len = len;
     if (!len) { out.block = "Those dates are weekly offs or holidays already."; return out; }
-    const ent = entitlement(S.uid), { used, pend } = leaveUsed(S.uid);
-    if (t in DEF.quota) {
-      if (!(t in ent)) { out.block = `${LT[t]} isn't part of your entitlement as a ${ETYPE[etypeOf(S.uid)].toLowerCase()}.`; return out; }
-      const avail = ent[t] - (used[t]||0) - (pend[t]||0);
+    const ent = entitlement(S.uid), { used, pend } = leaveUsed(S.uid), pt = pool(t), j = joinOf(S.uid), junior = !isConfirmed(S.uid);
+    if (j && from < addDays(j, Number(P.firstDaysNoLeave))) { out.block = `No leave in your first ${P.firstDaysNoLeave} days (ATR-HR-01).`; return out; }
+    if (pt === "cl") {
+      if (junior && len > 1) { out.block = "Interns, trainees and provisional employees can take 1 day of CL/SL at a time, not consecutive days."; return out; }
+      if (junior && live(S.root, S.dec).some(r => isLeave(r) && pool(lt(r)) === "cl" && ymOf(r.from) === ymOf(from))) { out.block = `You already have a CL/SL day in ${ymLabel(ymOf(from))}. The limit is 1 a month.`; return out; }
+      if (!junior && len > Number(P.clMaxRun)) { out.block = `CL/SL is at most ${P.clMaxRun} days in a row. Use earned leave for longer.`; return out; }
+    }
+    if (pt === "el") {
+      if (len > Number(P.elMaxRun)) { out.block = `Earned leave is at most ${P.elMaxRun} days at a time.`; return out; }
+      if (parseD(from) - parseD(S.today) < Number(P.elNoticeDays) * 864e5) flags.push({ t:`Less than ${P.elNoticeDays} days' notice for EL`, red:true });
+      if (live(S.root, S.dec).some(r => isLeave(r) && pool(lt(r)) === "el" && qKey(r.from) === qKey(from))) flags.push({ t:"EL already taken this quarter (once a quarter)", red:true });
+    }
+    if (["cl","el","bereavement"].includes(pt)) {
+      if (!(pt in ent)) { out.block = pt === "el" ? "Earned leave starts after 12 months of service." : `${LT[t]} isn't part of your entitlement as a ${ETYPE[etypeOf(S.uid)].toLowerCase()}.`; return out; }
+      const avail = ent[pt] - (used[pt]||0) - (pend[pt]||0);
       out.paid = k === "half" ? (avail >= .5 ? .5 : 0) : Math.min(len, Math.max(0, Math.floor(avail)));
       if (out.paid < len) flags.push({ t:`${plural(len - out.paid, "day")} beyond your ${LT[t].replace(/ \(.*\)/, "")} balance will be LWP`, red:true });
     } else out.paid = t === "unpaid" ? 0 : len;
-    if (t !== "sl" && t !== "emergency" && atStart(from) - now < P.noticeHours * 36e5) flags.push({ t:`Less than ${P.noticeHours}h notice` });
+    if (from < S.today) flags.push({ t:"Applied after the day: apply on greytHR within 2 working days of returning", red: false });
     if (len > P.consecReason) flags.push({ t:`More than ${P.consecReason} days in a row: reason needed` });
-    if (t === "sl" && len > P.certAfter) flags.push({ t:"Medical certificate needed" });
-    if (offReason(addDays(from, -1)) || offReason(addDays(r.to, 1))) flags.push({ t:"Next to a weekly off or holiday" });
+    if (t === "sl" && len > P.certAfter) flags.push({ t:"Medical certificate needed (2 or more sick days)" });
+    if (pt === "cl" && (offReason(addDays(from, -1)) || offReason(addDays(r.to, 1)))) flags.push({ t:"Next to a weekly off or holiday: needs the manager's approval (ATR-HR-03 §4)", red:true });
     if (needsHR(r)) flags.push({ t:"Manager and HR both approve" });
     out.info = `${plural(len, "working day")}. ${mgr} approves it.`;
   } else if (k === "short") {
@@ -1643,10 +1637,16 @@ function assess(){
     if (!days.includes(parseD(from).getDay())) { out.block = `WFH is allowed only on ${days.map(d => DOW_LONG[d]).join(", ") || "no days"}.`; return out; }
     const wb = wfhBlock(S.uid, from); if (wb) { out.block = wb; return out; }
     if (live(S.root, S.dec).some(r => r.kind === "wfh" && r.from === from)) { out.block = "You already have a WFH request for that day."; return out; }
-    const wk = wfhWeekCount(S.uid, from);
-    if (wk >= P.wfhMaxWeek) { out.block = `You already have ${wk} WFH days that week (limit ${P.wfhMaxWeek}).`; return out; }
-    if (atStart(from) - now < P.wfhNoticeHours * 36e5) flags.push({ t:`Less than ${P.wfhNoticeHours}h notice`, red:true });
-    out.info = `${wk} of ${P.wfhMaxWeek} WFH days used that week. ${mgr} approves it.`;
+    const mo = wfhMonthCount(S.uid, from), q = wfhCount(S.uid, d => qKey(d) === qKey(from)), hy = wfhCount(S.uid, d => hKey(d) === hKey(from)), yr = wfhCount(S.uid, d => d.slice(0,4) === from.slice(0,4));
+    const ahead = (parseD(from) - parseD(S.today)) / 864e5;
+    if (mo >= Number(P.wfhPerMonth)) {
+      if (!isConfirmed(S.uid)) { out.block = `You've used your WFH day for ${ymLabel(ymOf(from))}. Interns, trainees and provisional employees get 1 a month.`; return out; }
+      if (yr >= 12 || hy >= Number(P.wfhPerHalf)) { out.block = `You've used all ${P.wfhPerHalf} WFH days for this half-year.`; return out; }
+      if (q >= Number(P.wfhPerQuarter)) { flags.push({ t:`Half-yearly combination: needs the Business Head too, ${P.wfhHalfNoticeDays} working days ahead`, red: ahead < Number(P.wfhHalfNoticeDays) * 1.4 }); }
+      else flags.push({ t:`Quarterly combination (uses another month's day): ${P.wfhPoolNoticeDays} working days ahead`, red: ahead < Number(P.wfhPoolNoticeDays) * 1.4 });
+    }
+    if (atStart(from) - now < P.wfhNoticeHours * 36e5) flags.push({ t:"Less than 2 working days' notice", red:true });
+    out.info = `${mo} of ${P.wfhPerMonth} WFH day used in ${ymLabel(ymOf(from))}${isConfirmed(S.uid) ? ` · ${q} of ${P.wfhPerQuarter} this quarter` : ""}. ${mgr} approves it. Not for client meetings, shoots or launch weeks.`;
   } else if (k === "optional") {
     const usedN = live(S.root, S.dec).filter(r => r.kind === "optional" && r.from.slice(0,4) === from.slice(0,4)).length;
     if (usedN >= P.optionalPerYear) { out.block = `You've already picked ${P.optionalPerYear} optional holidays this year.`; return out; }
@@ -1780,6 +1780,29 @@ function renderReport(){
   } else det.replaceChildren();
 }
 let rpTimer = null; function scheduleReport(){ clearTimeout(rpTimer); rpTimer = setTimeout(loadReport, 400); }
+// Every punch for the month: one row per punch session, plus one row for each working day with no punch (leave, absence, holiday).
+async function downloadPunchLog(){
+  if (!downloads) { toast("Downloads aren't available in this view."); return; }
+  if (!Object.keys(S.rpDocs || {}).length) { await loadReport(); }
+  const ym = S.rpYM, esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`, t = ms => ms ? new Date(ms).toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:false }) : "";
+  const head = ["Employee Code","Employee","Company","Date","Day","Day status","Punch in","Punch out","Session hours","Day total hours","Mode","Punch-in location","Punch-out location","Late mark","Short leave","Edited / regularised","LOP days","Paid leave days","Short-day ½ (leave or LOP)","Notes"];
+  const rows = [head.map(esc).join(",")];
+  for (const { id } of reportRows()) {
+    const p = person(id), doc = S.rpDocs[id], appr = approved(rootOf(id), decOf(id)), j = joinOf(id);
+    for (let d = 1; d <= daysIn(ym); d++) {
+      const ds = `${ym}-${pad(d)}`; if (ds > S.today) break;
+      const rec = doc && doc.days && doc.days[pad(d)], e = evalDay(ds, rec, appr, j); if (e.code === "upcoming") continue;
+      const base = [p.code || "", nameOf(id), companyOf(id), ds, DOW_LONG[parseD(ds).getDay()], e.label || (e.off ? String(e.off) : "")];
+      const sess = (rec && rec.s) || [];
+      if (!sess.length) { rows.push([...base, "", "", "", e.ms ? (e.ms / 36e5).toFixed(2) : "", "", "", "", "", e.short ? "Yes" : "", e.edited ? "Yes" : "", e.lwp || "", e.paidLeave || "", e.debit || "", (e.notes || []).join("; ")].map(esc).join(",")); continue; }
+      sess.forEach((x, i) => rows.push([...base, t(x.i), x.o ? t(x.o) : "Not punched out", x.o ? ((x.o - x.i) / 36e5).toFixed(2) : "", i === 0 ? (e.ms / 36e5).toFixed(2) : "",
+        x.m === "wfh" ? "WFH" : "Office", locName(x.m === "wfh" ? "home" : x.l, x.ln), x.o ? locName(x.lo || (x.m === "wfh" ? "home" : x.l), x.ln) : "", i === 0 && e.late ? "Yes" : "",
+        i === 0 && e.short ? "Yes" : "", i === 0 && e.edited ? "Yes" : "", i === 0 ? (e.lwp || "") : "", i === 0 ? (e.paidLeave || "") : "", i === 0 ? (e.debit || "") : "", i === 0 ? (e.notes || []).join("; ") : ""].map(esc).join(",")));
+    }
+  }
+  try { await downloads.save({ filename: `atraski-punch-log-${ym}.csv`, data: rows.join("\n") }); toast(`Punch log saved · ${rows.length - 1} rows`); }
+  catch (e) { if (e && e.code !== "declined") toast("Couldn't save the file."); }
+}
 async function loadReport(){
   if (!db || !S.admin) return;
   const ym = S.rpYM, ids = Object.keys(S.team);
@@ -2020,8 +2043,8 @@ function renderOff(){
     : [h("div", { class:"empty", text:"No offices yet. Add each office so people can say where they punched in." })]));
 }
 const POL_FIELDS = [["#pFrom","flexFrom","t"],["#pTo","flexTo","t"],["#pGrace","grace"],["#pFull","fullHours"],["#pHalf","halfHours"],["#pLateN","lateEvery"],["#pLateD","lateDeduct"],["#pLateW","lateWarn"],
-  ["#pqEl","quota.el"],["#pqCl","quota.cl"],["#pqSl","quota.sl"],["#pqEm","quota.emergency"],["#pqI3","internCL3"],["#pqI6","internCL6"],["#pElCarry","elCarryMax"],["#pNotice","noticeHours"],["#pConsec","consecReason"],["#pCert","certAfter"],
-  ["#pShortN","shortPerMonth"],["#pShortM","shortMaxMins"],["#pWfhMax","wfhMaxWeek"],["#pWfhNotice","wfhNoticeHours"],["#pWfhMonths","wfhMinMonths"],["#pWfhFirst","wfhFirstDays"],["#pOptN","optionalPerYear"],
+  ["#pqEl","quota.el"],["#pqCl","quota.cl"],["#pqSl","provCL"],["#pqEm","quota.bereavement"],["#pqI3","internCL3"],["#pqI6","internCL6"],["#pElCarry","elCarryMax"],["#pNotice","noticeHours"],["#pConsec","consecReason"],["#pCert","certAfter"],
+  ["#pShortN","shortPerMonth"],["#pShortM","shortMaxMins"],["#pWfhMax","wfhPerMonth"],["#pWfhNotice","wfhNoticeHours"],["#pWfhMonths","wfhPerQuarter"],["#pWfhFirst","wfhFirstDays"],["#pOptN","optionalPerYear"],
   ["#pTePre","tePreDays"],["#pTeClaim","teClaimDays"],["#pTeAir","teAirDays"],["#pTeCab","teCab"],["#pTeAuto","teAuto"],["#pTeHotel","teHotel"],["#pPayBasis","payBasis","t"]];
 const getPath = (o, p) => p.split(".").reduce((a, k) => a && a[k], o);
 function fillPolicy(force){
@@ -2116,147 +2139,6 @@ function workingBetween(a, b){ let n = 0, d = addDays(a, 1); while (d < b) { if 
 const canSeeTeam = () => effRole() !== "employee" && S.admin;
 const isFinance = () => !!(S.finance || S.owner || S.hr);
 let assets = null;
-
-// ======================================================================
-// DAILY REPORTS  (att/<uid>/reports/<YYYY-MM> → { days: { DD: {...} } })
-// ======================================================================
-const RSTAT = { done:"Done", wip:"In progress", blocked:"Blocked" };
-S.myRep = {}; S.teamRep = {}; S.repDate = todayStr(); S.repTeamDate = todayStr(); S.repDraft = null; S.repDirty = false;
-const repRef = (uid, ym) => db.doc(`att/${uid}/reports/${ym}`);
-const repOf = (map, ds) => { const m = map[ymOf(ds)]; return m && m.days && m.days[ds.slice(8)] || null; };
-const repHours = r => (r && r.tasks || []).reduce((a, t) => a + (Number(t.h) || 0), 0);
-let unsubRep = null;
-function subMyRep(){
-  if (!db || !S.uid) return;
-  if (unsubRep) unsubRep();
-  const ym = ymOf(S.today);
-  unsubRep = repRef(S.uid, ym).onSnapshot(s => { S.myRep[ym] = s.data() || null; if (!S.repDirty) loadDraft(); renderReports(); }, () => {});
-}
-async function ensureMyRep(ym){
-  if (ym in S.myRep || !db || !S.uid) return;
-  try { const s = await repRef(S.uid, ym).get(); S.myRep[ym] = s.data() || null; } catch { S.myRep[ym] = null; }
-}
-function loadDraft(){
-  const r = repOf(S.myRep, S.repDate);
-  S.repDraft = r ? { tasks: clone(r.tasks || []), blockers: r.blockers || "", tomorrow: r.tomorrow || "" } : { tasks: [{ c:"", t:"", h:"", st:"done" }], blockers:"", tomorrow:"" };
-  if (!S.repDraft.tasks.length) S.repDraft.tasks.push({ c:"", t:"", h:"", st:"done" });
-  S.repDirty = false;
-  renderRepEditor();
-}
-function recentClients(){
-  const set = new Set();
-  for (const m of Object.values(S.myRep)) for (const d of Object.values((m && m.days) || {})) for (const t of d.tasks || []) if (t.c) set.add(t.c);
-  return [...set].slice(0, 40);
-}
-function renderRepEditor(){
-  const host = $("#repTasks"); if (!S.repDraft) return;
-  let dl = $("#repClientList"); if (!dl) { dl = h("datalist", { id:"repClientList" }); document.body.append(dl); }
-  dl.replaceChildren(...recentClients().map(c => h("option", { value:c })));
-  host.replaceChildren(...S.repDraft.tasks.map((t, i) => h("div", { class:"reprow" },
-    h("input", { "aria-label":"Client or project", placeholder:"Client / project", list:"repClientList", value:t.c, oninput: e => { t.c = e.target.value; S.repDirty = true; } }),
-    h("input", { "aria-label":"What you did", placeholder:"What you did", value:t.t, oninput: e => { t.t = e.target.value; S.repDirty = true; } }),
-    h("input", { "aria-label":"Hours", type:"number", min:"0", max:"16", step:"0.25", placeholder:"Hrs", value:t.h, oninput: e => { t.h = e.target.value; S.repDirty = true; updateRepHint(); } }),
-    h("select", { "aria-label":"Status", onchange: e => { t.st = e.target.value; S.repDirty = true; } }, ...Object.entries(RSTAT).map(([v, l]) => h("option", { value:v, selected: t.st === v, text:l }))),
-    h("button", { class:"btn sm bad", type:"button", "aria-label":"Remove task", onclick: () => { S.repDraft.tasks.splice(i, 1); if (!S.repDraft.tasks.length) S.repDraft.tasks.push({ c:"", t:"", h:"", st:"done" }); S.repDirty = true; renderRepEditor(); }, text:"✕" }))));
-  $("#repBlockers").value = S.repDraft.blockers; $("#repTomorrow").value = S.repDraft.tomorrow;
-  updateRepHint();
-}
-function updateRepHint(){
-  if (!S.repDraft) return;
-  const hrs = S.repDraft.tasks.reduce((a, t) => a + (Number(t.h) || 0), 0);
-  const dd = S.repDate.slice(8), rec = S.repDate.slice(0,7) === S.curYM && S.cur && S.cur.days && S.cur.days[dd];
-  const worked_ = rec ? worked(rec, S.repDate === S.today ? Date.now() : 0) / 36e5 : 0;
-  $("#repHint").textContent = `${num1(Math.round(hrs * 4) / 4)}h logged in tasks` + (worked_ ? ` · ${num1(Math.round(worked_ * 10) / 10)}h on the punch clock` : "");
-}
-function renderReports(){
-  if (!S.uid) return;
-  const r = repOf(S.myRep, S.repDate), late = S.repDate < S.today;
-  $("#repStatus").replaceChildren(r ? h("div", { class:"row" }, h("span", { class:"pill c-approved", text:`Submitted ${tLabel(r.at)}${r.late ? " · late" : ""}` }),
-      r.ack ? h("span", { class:"pill c-office", text:`Seen by ${nameOf(r.ack.by)}${r.ack.note ? ": " + r.ack.note : ""}` }) : h("span", { class:"meta", text:"Not reviewed yet" }))
-    : h("span", { class:"pill " + (late ? "c-absent" : "c-pending"), text: late ? `Missing for ${dLabel(S.repDate)}` : "Not submitted yet" }));
-  $("#repSubmit").textContent = r ? "Update report" : "Submit report";
-  // my month
-  const ym = ymOf(S.today), rows = [];
-  for (let d = Number(S.today.slice(8)); d >= 1; d--) {
-    const ds = `${ym}-${pad(d)}`; if (!isWorking(ds)) continue;
-    const j = joinOf(S.uid); if (j && ds < j) continue;
-    const x = repOf(S.myRep, ds);
-    rows.push(h("button", { class:"item", type:"button", style:"text-align:left;background:var(--surface);cursor:pointer", onclick: () => { S.repDate = ds; $("#repDate").value = ds; loadDraft(); renderReports(); } },
-      h("div", null, h("div", { style:"font-weight:600", text: dLabel(ds) }), h("div", { class:"meta", text: x ? `${x.tasks.length} task${x.tasks.length === 1 ? "" : "s"} · ${num1(repHours(x))}h · ${[...new Set(x.tasks.map(t => t.c).filter(Boolean))].join(", ") || "—"}` : "No report" })),
-      x ? h("span", { class:"pill " + (x.ack ? "c-office" : "c-approved"), text: x.ack ? "Reviewed" : "Submitted" }) : h("span", { class:"pill " + (ds < S.today ? "c-absent" : "c-pending"), text: ds < S.today ? "Missing" : "Due today" })));
-  }
-  $("#repMine").replaceChildren(...(rows.length ? rows : [h("div", { class:"empty", text:"Your reports for this month will be listed here." })]));
-  renderRepTeam();
-}
-async function submitReport(){
-  if (!db || !S.uid || !S.repDraft) return;
-  const tasks = S.repDraft.tasks.map(t => ({ c: t.c.trim().slice(0, 60), t: t.t.trim().slice(0, 300), h: Math.max(0, Math.min(16, Number(t.h) || 0)), st: t.st || "done" })).filter(t => t.t);
-  if (!tasks.length) { toast("Add at least one task you worked on."); return; }
-  if (S.repDate > S.today) { toast("You can't report on a future day."); return; }
-  const ym = ymOf(S.repDate), dd = S.repDate.slice(8);
-  const prev = repOf(S.myRep, S.repDate);
-  const day = { tasks, blockers: $("#repBlockers").value.trim().slice(0, 600), tomorrow: $("#repTomorrow").value.trim().slice(0, 600), at: Date.now(), late: S.repDate < S.today };
-  if (prev && prev.ack) day.ack = prev.ack;
-  try {
-    await enqueue(async () => { const ref = repRef(S.uid, ym), s = await ref.get(); if (s.exists) await ref.update({ days: { [dd]: day } }); else await ref.set({ days: { [dd]: day } }); });
-    S.myRep[ym] = { days: { ...((S.myRep[ym] && S.myRep[ym].days) || {}), [dd]: day } };
-    S.repDirty = false; toast(prev ? "Report updated" : "Report submitted"); renderReports();
-  } catch (e) { onWriteErr(e); }
-}
-// team
-async function loadTeamReports(ym){
-  if (!canSeeTeam() || !Object.keys(S.team).length) return;
-  const ids = scopeIds();
-  try {
-    const snaps = await Promise.all(ids.map(id => repRef(id, ym).get()));
-    S.teamRep[ym] = Object.fromEntries(ids.map((id, i) => [id, snaps[i].data() || null]));
-  } catch { toast("Couldn't load team reports."); }
-  renderRepTeam(); renderReport();
-}
-function renderRepTeam(){
-  const show = canSeeTeam();
-  $("#repTeamPanel").hidden = !show; if (!show) return;
-  $("#repTeamEyebrow").textContent = effRole() === "admin" ? "Everyone" : "My team";
-  const ds = S.repTeamDate, ym = ymOf(ds), map = S.teamRep[ym];
-  if (!map || scopeIds().some(id => !(id in map))) { $("#repTeamList").replaceChildren(h("div", { class:"empty", text:"Loading reports…" })); if (!S.repLoading) { S.repLoading = true; loadTeamReports(ym).finally(() => S.repLoading = false); } if (!map) return; }
-  const ids = scopeIds().filter(id => id in map || true);
-  let sub = 0, miss = 0;
-  $("#repTeamList").replaceChildren(...(ids.length ? ids.map(id => {
-    const r = map[id] && map[id].days && map[id].days[ds.slice(8)];
-    const j = joinOf(id), notDue = !isWorking(ds) || (j && ds < j) || ds > S.today;
-    if (r) sub++; else if (!notDue) miss++;
-    const det = r ? h("div", { class:"stack", style:"gap:6px;margin-top:6px;width:100%" },
-        ...r.tasks.map(t => h("div", { class:"reptask" }, h("span", { class:"chip", text: t.c || "General" }), h("span", { text: t.t }), h("span", { class:"mono muted", text: `${num1(t.h)}h` }), h("span", { class:"pill c-" + (t.st === "done" ? "approved" : t.st === "blocked" ? "absent" : "pending"), text: RSTAT[t.st] || "" }))),
-        r.blockers ? h("div", { class:"meta" }, h("b", { text:"Blockers: " }), r.blockers) : null,
-        r.tomorrow ? h("div", { class:"meta" }, h("b", { text:"Tomorrow: " }), r.tomorrow) : null) : null;
-    const ackBox = r && !r.ack ? (() => { const inp = h("input", { placeholder:"Comment (optional)", style:"flex:1;min-width:140px", "aria-label":"Comment" });
-        return h("div", { class:"row", style:"width:100%;margin-top:6px" }, inp, h("button", { class:"btn sm good", type:"button", onclick: () => ackReport(id, ds, inp.value), text:"Mark as reviewed" })); })() : null;
-    return h("div", { class:"item", style:"align-items:flex-start" },
-      h("div", { class:"who", style:"min-width:0;flex:1" }, avatar(id), h("div", { style:"min-width:0;flex:1" }, h("div", { style:"font-weight:600", text: nameOf(id) }),
-        h("div", { class:"meta", text: r ? `${num1(repHours(r))}h · submitted ${tLabel(r.at)}${r.late ? " (late)" : ""}${r.ack ? ` · reviewed by ${nameOf(r.ack.by)}${r.ack.note ? ": " + r.ack.note : ""}` : ""}` : notDue ? "Not due" : "No report" }), det, ackBox)),
-      h("span", { class:"pill " + (r ? (r.ack ? "c-office" : "c-approved") : notDue ? "c-off" : "c-absent"), text: r ? (r.ack ? "Reviewed" : "Submitted") : notDue ? "Not due" : "Missing" }));
-  }) : [h("div", { class:"empty", text:"Nobody reports to you yet." })]));
-  $("#repTeamCounts").replaceChildren(h("span", { class:"pill c-approved", text:`${sub} submitted` }), h("span", { class:"pill c-absent", text:`${miss} missing` }));
-  // hours by client this month
-  const agg = {};
-  for (const id of scopeIds()) for (const d of Object.values((map[id] && map[id].days) || {})) for (const t of d.tasks || []) {
-    const k = (t.c || "General").trim(); agg[k] = agg[k] || { h:0, p:new Set() }; agg[k].h += Number(t.h) || 0; agg[k].p.add(id);
-  }
-  const rows = Object.entries(agg).sort((a, b) => b[1].h - a[1].h).slice(0, 25);
-  $("#repClients").replaceChildren(...(rows.length ? rows.map(([c, v]) => h("tr", null, h("td", { text:c }), h("td", { text: num1(Math.round(v.h * 10) / 10) }), h("td", { style:"text-align:left;font-family:var(--f-body)", text:[...v.p].map(nameOf).join(", ") })))
-    : [h("tr", null, h("td", { colspan:"3", class:"muted", text:"No reports yet this month." }))]));
-}
-async function ackReport(id, ds, note){
-  const ym = ymOf(ds), dd = ds.slice(8), ack = { by: S.uid, at: Date.now(), note: (note || "").trim().slice(0, 200) };
-  try { await enqueue(() => repRef(id, ym).update({ days: { [dd]: { ack } } })); const m = S.teamRep[ym] && S.teamRep[ym][id]; if (m && m.days && m.days[dd]) m.days[dd] = { ...m.days[dd], ack }; toast("Marked as reviewed"); renderRepTeam(); }
-  catch { toast("Couldn't save the review."); }
-}
-function reportCount(id, ym){
-  const m = S.teamRep[ym] && S.teamRep[ym][id]; if (!S.teamRep[ym]) return null;
-  let due = 0, done = 0, end = ym === ymOf(S.today) ? S.today : `${ym}-${pad(daysIn(ym))}`; const j = joinOf(id);
-  for (let d = 1; d <= daysIn(ym); d++) { const ds = `${ym}-${pad(d)}`; if (ds > end || !isWorking(ds) || (j && ds < j)) continue; due++; if (m && m.days && m.days[pad(d)]) done++; }
-  return { due, done };
-}
 
 // ======================================================================
 // TRAVEL & EXPENSE  (HR-002)   trips live in att/<uid>.trips[tid]; approvals in decisions/<uid>["t_"+tid]
@@ -2483,11 +2365,13 @@ function payRow(id){
   const pend = reqList(rootOf(id), decOf(id)).filter(r => r.status === "pending" && ymOf(r.from) === ym).length;
   if (pend) checks.push({ t:`${pend} request pending`, red:true });
   if (s.lateDeduct && !adj) checks.push({ t:`Late deduction ${num1(s.lateDeduct)}d not applied` });
+  if (s.debit) checks.push({ t:`Short days ${num1(s.debit)}d: ${num1(s.debitCl + s.debitEl)} from leave${s.debitLop ? `, ${num1(s.debitLop)} LOP` : ""}` });
+  if (s.late >= Number(P.lateWarn)) checks.push({ t:`${s.late} late marks: written reminder` });
   if (s.uwfh) checks.push({ t:`Unapproved WFH ×${s.uwfh}` });
   if (prejoin) checks.push({ t:`Joined ${dLong(j)} · ${prejoin} days before joining` });
   if (ym >= ymOf(S.today)) checks.push({ t:"Month not over yet", red:true });
   return { id, name: nameOf(id), code: person(id).code || "", dept: person(id).dept || "", pos: person(id).pos || "", etype: etypeOf(id), salary, basis, working: s.working, worked: s.worked, leave: s.leave, wfh: s.wfh, perDay,
-    lopAtt, adj, lop, paidDays: basis - lop, gross, recovery, recoveryNote: row.recoveryNote || "", travel, tripIds: trips.map(t => t.tid), reimb, incentive, total,
+    lopAtt, adj, lop, paidDays: basis - lop, debitCl: s.debitCl, debitEl: s.debitEl, shortDays: s.debit, gross, recovery, recoveryNote: row.recoveryNote || "", travel, tripIds: trips.map(t => t.tid), reimb, incentive, total,
     cycle: pay.cycle || defaultCycle(id), status: row.status || "Pending", paidOn: row.paidOn || "", remarks: row.remarks || "", checks, locked:false };
 }
 async function savePrRow(id, patch){
@@ -2538,7 +2422,7 @@ function renderPayrun(){
       r.status === "Paid" ? h("input", { type:"date", value: r.paidOn, onchange: e => setPayStatus(r, "Paid", e.target.value), style:"width:auto;padding:4px 6px;font-size:11px;margin-top:4px" }) : null),
     h("td", { style:"text-align:left;font-family:var(--f-body)" }, flagsEl(r.checks) || h("span", { class:"pill c-approved", text:"OK" }))))
     : [h("tr", null, h("td", { colspan:"16", class:"muted", text:"No one on the punch clock yet. People appear here after their first visit; then set their salary." }))]));
-  $("#prFoot").textContent = `Per-day rate = monthly salary ÷ ${P.payBasis === "calendar" ? "calendar days in the month (Payrun Workbook method)" : "working days in the month (SOP section 4)"}. LOP comes from attendance: absences without leave, leave beyond balance, unpaid leave, unregularised missed punches, unapproved WFH from the 2nd in a month, and working days before joining. Use "LOP adjust" for late-mark deductions or corrections. Travel claims are those verified by finance and not yet paid.`;
+  $("#prFoot").textContent = `Per-day rate = monthly salary ÷ ${P.payBasis === "calendar" ? "calendar days in the month (Payrun Workbook method)" : "working days in the month (SOP section 4)"}. LOP comes from attendance (ATR-HR-02/03 v3.0): absence without approval, leave beyond balance, approved LWP, short days when no leave is left, unregularised missed punches, and working days before joining. Short days covered by leave are taken from the CL/SL balance (then EL) when you lock. Use "LOP adjust" for late-mark deductions or corrections. Travel claims are those verified by finance and not yet paid.`;
 }
 async function setPayStatus(r, status, paidOn){
   const patch = { status, paidOn: status === "Paid" ? (paidOn || r.paidOn || S.today) : "" };
@@ -2648,6 +2532,7 @@ async function lockPayrun(){
       for (const r of rows) {
         const slip = { ym, salary: r.salary, basis: r.basis, working: r.working, lop: r.lop, paidDays: r.paidDays, gross: r.gross, recovery: r.recovery, recoveryNote: r.recoveryNote, travel: r.travel, reimb: r.reimb, incentive: r.incentive, total: r.total, cycle: r.cycle, status: r.status, paidOn: r.paidOn, at: Date.now() };
         if (S.pay[r.id]) await db.doc(`pay/${r.id}`).update({ slips: { [ym]: slip } }); else await db.doc(`pay/${r.id}`).set({ salary: r.salary, slips: { [ym]: slip } });
+        if (r.debitCl || r.debitEl) { const dd = db.doc(`decisions/${r.id}`), body = { [`debit_${ym}`]: { cl: r.debitCl, el: r.debitEl, at: Date.now() } }; if (S.teamDec[r.id]) await dd.update(body); else await dd.set(body); }
         if (r.tripIds.length) { const dref = db.doc(`finance/${r.id}`), upd = Object.fromEntries(r.tripIds.map(tid => ["t_" + tid, { paidYM: ym }])); if (S.finDec[r.id]) await dref.update(upd); else await dref.set(upd); }
       }
     });
@@ -2779,7 +2664,7 @@ async function loadQAtt(id){
   const pk = S.pfPeriod, key = id + "|" + pk; if (S.pfAtt[key]) return;
   const months = qRange(pk).months.filter(ym => ym <= ymOf(S.today));
   try {
-    const docs = await Promise.all(months.map(ym => Promise.all([db.doc(`att/${id}/months/${ym}`).get(), repRef(id, ym).get()])));
+    const docs = await Promise.all(months.map(ym => Promise.all([db.doc(`att/${id}/months/${ym}`).get()])));
     const a = { working:0, worked:0, leave:0, lwp:0, late:0, missed:0, uwfh:0 }, rg = qRange(pk), j = joinOf(id);
     months.forEach((ym, i) => {
       const s = summarize(ym, docs[i][0].data(), id);
@@ -3232,7 +3117,7 @@ const ICONS = {
 };
 function svgIcon(k){ const t = document.createElementNS("http://www.w3.org/2000/svg", "svg"); t.setAttribute("viewBox", "0 0 24 24"); t.setAttribute("fill", "none"); t.setAttribute("stroke", "currentColor"); t.setAttribute("stroke-width", "1.8"); t.setAttribute("stroke-linecap", "round"); t.setAttribute("stroke-linejoin", "round"); t.setAttribute("aria-hidden", "true"); t.innerHTML = ICONS[k] || ""; return t; }
 document.querySelectorAll("[data-icon]").forEach(el => el.prepend(svgIcon(el.dataset.icon)));
-const TITLES = { home:"Home", inbox:"Inbox", me:"Attendance & leave", reports:"Daily report", travel:"Travel & claims", perf:"Performance", payslips:"Payslips", onboard:"My onboarding", team:"Team", directory:"People directory", docs:"Policies & documents", people:"Employee records", org:"Structure", payrun:"Pay run", policy:"Policy settings" };
+const TITLES = { home:"Home", inbox:"Inbox", me:"Attendance & leave", travel:"Travel & claims", perf:"Performance", payslips:"Payslips", onboard:"My onboarding", team:"Team", directory:"People directory", docs:"Policies & documents", people:"Employee records", org:"Structure", payrun:"Pay run", policy:"Policy settings" };
 function setShell(r){
   const t = r === "team" ? (effRole() === "admin" ? "Overview" : "My team") : r === "inbox" && !canSeeTeam() && !S.finance ? "My to-dos" : TITLES[r] || "";
   $("#tbTitle").textContent = t; document.title = `${t} · Atraski People`;
@@ -3264,19 +3149,18 @@ function route(){
   let r = (location.hash || "").slice(1);
   if (!allowed.includes(r)) r = allowed[0];
   document.querySelectorAll(".side nav a").forEach(a => { a.hidden = !allowed.includes(a.dataset.route); a.setAttribute("aria-current", a.dataset.route === r ? "page" : "false"); });
-  for (const v of ["home","inbox","me","reports","travel","perf","payslips","onboard","team","directory","docs","people","org","payrun","policy"]) $("#v-" + v).hidden = v !== r;
+  for (const v of ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs","people","org","payrun","policy"]) $("#v-" + v).hidden = v !== r;
   document.querySelectorAll(".side .ng").forEach(g => g.hidden = ![...g.querySelectorAll("a")].some(a => !a.hidden));
   if (r === "home") renderHome(); if (r === "inbox") renderInbox(); if (r === "payslips") renderPayslips(); if (r === "directory") renderDirectory(); if (r === "docs") renderDocs();
   window.scrollTo({ top: 0 }); setShell(r); renderTopbar();
   if (r === "team") loadReport();
-  if (r === "reports") { renderReports(); if (canSeeTeam()) loadTeamReports(ymOf(S.repTeamDate)); }
   if (r === "travel") renderTravel();
   if (r === "perf") renderPerf();
   if (r === "onboard") { S.obForm = false; renderOnboard(); }
   if (r === "payrun") { subPayrun(); loadPrMonths(); renderPayrun(); renderPayCheck(); }
 }
 function renderAll(){ renderRole(); renderBanners(); renderMe(); renderMonth(); renderReqs(); renderRules(); renderTeam(); renderPeople(); renderOrg(); renderPayslips();
-  if (!$("#v-reports").hidden) renderReports(); if (!$("#v-travel").hidden && !$("#v-travel").contains(document.activeElement)) renderTravel(); renderPayrun(); renderPerf(); renderHome(); renderInbox(); renderPayslipsPage(); renderDirectory(); renderDocs(); renderHrDocs(); renderMyDocs(); renderOnboard(); navBadges(); }
+  if (!$("#v-travel").hidden && !$("#v-travel").contains(document.activeElement)) renderTravel(); renderPayrun(); renderPerf(); renderHome(); renderInbox(); renderPayslipsPage(); renderDirectory(); renderDocs(); renderHrDocs(); renderMyDocs(); renderOnboard(); navBadges(); }
 
 // ---------- subscriptions ----------
 let unsubCur = null;
@@ -3361,17 +3245,10 @@ $("#rpMonth").addEventListener("change", () => { if ($("#rpMonth").value) { S.rp
 $("#rpCompany").addEventListener("change", renderReport);
 $("#rpRefresh").addEventListener("click", loadReport);
 $("#rpCsv").addEventListener("click", downloadCsv);
+$("#rpPunch").addEventListener("click", downloadPunchLog);
 $("#v-policy").addEventListener("input", () => policyDirty = true);
 $("#hAdd").addEventListener("click", () => { const d = $("#hDate").value; if (!d) { toast("Pick the holiday date."); return; } draftHol = draftHol.filter(x => x.d !== d); draftHol.push({ d, n: $("#hName").value.trim() || "Holiday" }); $("#hName").value = ""; policyDirty = true; renderHol(); });
 $("#pSave").addEventListener("click", savePolicy);
-$("#repDate").value = S.repDate; $("#repTeamDate").value = S.repTeamDate;
-$("#repDate").addEventListener("change", async e => { const v = e.target.value; if (!v) return; if (v > S.today) { e.target.value = S.repDate; toast("You can't report on a future day."); return; } S.repDate = v; await ensureMyRep(ymOf(v)); loadDraft(); renderReports(); });
-$("#repAdd").addEventListener("click", () => { S.repDraft.tasks.push({ c:"", t:"", h:"", st:"done" }); S.repDirty = true; renderRepEditor(); });
-$("#repBlockers").addEventListener("input", e => { if (S.repDraft) { S.repDraft.blockers = e.target.value; S.repDirty = true; } });
-$("#repTomorrow").addEventListener("input", e => { if (S.repDraft) { S.repDraft.tomorrow = e.target.value; S.repDirty = true; } });
-$("#repSubmit").addEventListener("click", submitReport);
-$("#repTeamDate").addEventListener("change", e => { if (!e.target.value) return; S.repTeamDate = e.target.value; renderRepTeam(); });
-$("#repTeamRefresh").addEventListener("click", () => loadTeamReports(ymOf(S.repTeamDate)));
 $("#trStart").value = addDays(S.today, 4); $("#trEnd").value = addDays(S.today, 4);
 ["#trScope","#trMode","#trCabWhy","#trStart","#trEnd","#trEst","#trCat"].forEach(id => $(id).addEventListener("change", () => { if (id === "#trStart" && $("#trEnd").value < $("#trStart").value) $("#trEnd").value = $("#trStart").value; fillTripForm(); }));
 $("#trSubmit").addEventListener("click", submitTrip);
