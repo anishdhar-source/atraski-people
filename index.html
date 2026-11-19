@@ -852,14 +852,16 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
 
   <!-- PAY RUN -->
   <section id="v-payrun" class="stack" hidden>
-    <div class="panel stack">
+    <div class="panel stack" id="pcPanel"></div>
+    <div class="panel stack" id="prMain">
       <div class="row between">
-        <div><span class="eyebrow">Owner only · salaries are hidden from everyone else</span><h2 id="prTitle">Pay run</h2></div>
+        <div><span class="eyebrow">CEO only · finance sees it only when you send it for a check</span><h2 id="prTitle">Pay run</h2></div>
         <div class="row">
           <input type="month" id="prMonth" aria-label="Pay run month" style="width:auto">
           <span class="pill" id="prStatus"></span>
           <button class="btn sm" id="prRefresh" type="button">Refresh attendance</button>
           <button class="btn sm" id="prCsv" type="button">Download CSV</button>
+          <button class="btn sm" id="prSend" type="button">Send to finance</button>
           <button class="btn sm" id="prSwitch" type="button" aria-pressed="false">Payslips: Off</button>
           <button class="btn sm primary" id="prLock" type="button">Lock pay run</button>
         </div>
@@ -872,7 +874,7 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
       </table></div>
       <p class="muted" style="margin:0;font-size:12px;max-width:95ch" id="prFoot"></p>
     </div>
-    <div class="panel stack">
+    <div class="panel stack" id="prImportPanel">
       <div><span class="eyebrow">Employee Master</span><h2>Import salaries</h2></div>
       <p class="muted" style="margin:0;font-size:13px;max-width:80ch">Paste two columns from the Payrun Workbook's Employee Master: Employee ID and Monthly Salary. Rows are matched to the employee codes set on the People page. Bank details stay in the workbook; this tool doesn't store them.</p>
       <textarea id="prPaste" placeholder="ATZ002	40,000&#10;ATZ003	25,000" style="min-height:90px;font-family:var(--f-mono)"></textarea>
@@ -2275,7 +2277,8 @@ function tripState(id, t){
   if (!t.claim || !t.claim.at) return { k:"claim", label:`Approved · claim by ${dLabel(addDays(t.end || t.start, P.teClaimDays))}`, pill:"c-approved" };
   if (s(d.mgr) === "rejected") return { k:"mgrrej", label:"Claim rejected", pill:"c-rejected" };
   if (s(d.mgr) !== "approved") return { k:"mgr", label:"Claim with manager", pill:"c-pending" };
-  if (s(d.fin) === "rejected") return { k:"finrej", label:"Rejected by finance", pill:"c-rejected" };
+  if (s(d.fin) === "rejected") return { k:"finrej", label:"Rejected by finance" + (d.fin.note ? ": " + d.fin.note : ""), pill:"c-rejected" };
+  if (s(d.fin) === "query" && !(t.claim.at > d.fin.at)) return { k:"finq", label:"Finance query" + (d.fin.note ? ": " + d.fin.note : ""), pill:"c-absent" };
   if (s(d.fin) !== "approved") return { k:"fin", label:"With finance", pill:"c-pending" };
   if (d.paidYM) return { k:"paid", label:`Paid in ${ymLabel(d.paidYM)} pay run`, pill:"c-office" };
   return { k:"ready", label:"Approved · paid in next pay run", pill:"c-approved" };
@@ -2363,7 +2366,7 @@ async function submitClaim(t){
   if (lines.some(l => !l.desc)) { toast("Describe each expense."); return; }
   const late = S.today > addDays(t.end || t.start, Number(P.teClaimDays));
   const flags = [...new Set(lines.flatMap(l => lineFlags(t, l).map(f => f.t)).concat(late ? [`Submitted more than ${P.teClaimDays} days after the trip`] : []))];
-  try { await enqueue(() => rootRef().update({ trips: { [t.tid]: { claim: { lines, at: Date.now(), total: lines.reduce((a, l) => a + l.amt, 0), flags } } } })); delete claimDrafts[t.tid]; S.openClaim = null; toast("Claim sent to your manager"); }
+  try { await enqueue(() => rootRef().update({ trips: { [t.tid]: { claim: { lines, at: Date.now(), total: lines.reduce((a, l) => a + l.amt, 0), flags } } } })); delete claimDrafts[t.tid]; S.openClaim = null; toast(tripState(S.uid, t).k === "finq" ? "Claim sent back to finance" : "Claim sent to your manager"); }
   catch (e) { onWriteErr(e); }
 }
 S.openClaim = null;
@@ -2382,13 +2385,19 @@ function tripCard(id, t, mode){
   const acts = [];
   if (mode === "mine") {
     if (st.k === "pre") acts.push(h("button", { class:"btn sm", type:"button", onclick: () => withdrawTrip(t), text:"Withdraw" }));
-    if (st.k === "claim" || st.k === "mgr" || st.k === "mgrrej") acts.push(h("button", { class:"btn sm" + (st.k === "claim" ? " primary" : ""), type:"button", onclick: () => { S.openClaim = S.openClaim === t.tid ? null : t.tid; renderTravel(); }, text: S.openClaim === t.tid ? "Close" : (t.claim && t.claim.at ? "Edit claim" : "Add expenses") }));
+    if (st.k === "claim" || st.k === "mgr" || st.k === "mgrrej" || st.k === "finq") acts.push(h("button", { class:"btn sm" + (st.k === "claim" ? " primary" : ""), type:"button", onclick: () => { S.openClaim = S.openClaim === t.tid ? null : t.tid; renderTravel(); }, text: S.openClaim === t.tid ? "Close" : (t.claim && t.claim.at ? "Edit claim" : "Add expenses") }));
   } else {
     const isMgr = canSeeTeam() && (mgrOf(id) === mgrId() || !mgrOf(id) || effRole() === "admin");
     const btns = (stage, label) => [h("button", { class:"btn sm good", type:"button", onclick: () => decideTrip(id, t, stage, "approved"), text: label }), h("button", { class:"btn sm bad", type:"button", onclick: () => decideTrip(id, t, stage, "rejected"), text:"Reject" })];
     if (st.k === "pre" && isMgr) acts.push(...btns("pre", "Approve trip"));
     if (st.k === "mgr" && isMgr) acts.push(...btns("mgr", `Approve claim ${inr(total)}`));
-    if (st.k === "fin" && isFinance()) acts.push(...btns("fin", `Verify for payment ${inr(total)}`));
+    if (st.k === "fin" && isFinance()) {
+      const why = h("input", { placeholder:"Reason (needed to query or reject)", style:"min-width:200px;font-size:12px;padding:6px 9px" });
+      const need = fn => () => { if (!why.value.trim()) { toast("Add a reason so the employee knows what to fix."); why.focus(); return; } fn(why.value.trim()); };
+      acts.push(h("button", { class:"btn sm good", type:"button", onclick: () => decideTrip(id, t, "fin", "approved"), text:`Verify for payment ${inr(total)}` }), why,
+        h("button", { class:"btn sm", type:"button", onclick: need(n => decideTrip(id, t, "fin", "query", n)), text:"Query" }),
+        h("button", { class:"btn sm bad", type:"button", onclick: need(n => decideTrip(id, t, "fin", "rejected", n)), text:"Reject" }));
+    }
   }
   const card = h("div", { class:"item", style:"align-items:flex-start" }, h("div", { class:"who", style:"min-width:0;flex:1" }, mode === "team" ? avatar(id) : null, head),
     h("div", { class:"stack", style:"gap:6px;justify-items:end" }, h("span", { class:"pill " + st.pill, text: st.label }), acts.length ? h("div", { class:"row" }, ...acts) : null));
@@ -2406,8 +2415,8 @@ function renderTravel(){
   $("#trTeamEyebrow").textContent = finOnly ? "Finance · all claims" : effRole() === "admin" ? "Everyone" : "My team";
   $("#trCsv").hidden = !isFinance();
   const items = [], ids = [...new Set([...(canSeeTeam() ? scopeIds() : []), ...(S.finance ? Object.keys(S.team) : [])])];
-  for (const id of ids) for (const t of tripsOf(id)) { const st = tripState(id, t); if (finOnly && !["mgr","fin","ready","paid","finrej"].includes(st.k)) continue; items.push({ id, t, st }); }
-  const order = { pre:0, mgr:1, fin:2, ready:3, claim:4, paid:5 };
+  for (const id of ids) for (const t of tripsOf(id)) { const st = tripState(id, t); if (finOnly && !["mgr","fin","finq","ready","paid","finrej"].includes(st.k)) continue; items.push({ id, t, st }); }
+  const order = { pre:0, mgr:1, fin:2, finq:3, ready:4, claim:5, paid:6 };
   const open = items.filter(x => x.st.k in order && (x.st.k !== "paid" || x.t.start >= addDays(S.today, -45))).sort((a, b) => order[a.st.k] - order[b.st.k] || (a.t.at - b.t.at));
   const c = k => items.filter(x => x.st.k === k).length;
   const ready = items.filter(x => x.st.k === "ready").reduce((a, x) => a + claimTotal(x.t), 0);
@@ -2427,10 +2436,10 @@ async function downloadClaimsCsv(){
   try { await downloads.save({ filename: `atraski-travel-claims-${ym}.csv`, data: rows.join("\n") }); toast("Claims saved"); } catch (e) { if (e && e.code !== "declined") toast("Couldn't save the file."); }
 }
 function withdrawTrip(t){ enqueue(() => rootRef().update({ trips: { [t.tid]: { withdrawn: true } } })).then(() => toast("Trip withdrawn")).catch(onWriteErr); }
-async function decideTrip(uid, t, stage, s){
-  const fin = stage === "fin", ref = db.doc(`${fin ? "finance" : "decisions"}/${uid}`), key = "t_" + t.tid, now = { s, at: Date.now(), by: S.uid };
+async function decideTrip(uid, t, stage, s, note){
+  const fin = stage === "fin", ref = db.doc(`${fin ? "finance" : "decisions"}/${uid}`), key = "t_" + t.tid, now = { s, at: Date.now(), by: S.uid, ...(note ? { note: String(note).slice(0, 200) } : {}) };
   const exists = fin ? !!S.finDec[uid] : !!S.teamDec[uid];
-  try { await enqueue(() => exists ? ref.update({ [key]: { [stage]: now } }) : ref.set({ [key]: { [stage]: now } })); toast(s === "rejected" ? "Rejected" : stage === "pre" ? "Trip approved" : stage === "mgr" ? "Claim approved, sent to finance" : "Verified for the next pay run"); }
+  try { await enqueue(() => exists ? ref.update({ [key]: { [stage]: now } }) : ref.set({ [key]: { [stage]: now } })); toast(s === "query" ? "Sent back to the employee with your question" : s === "rejected" ? "Rejected" : stage === "pre" ? "Trip approved" : stage === "mgr" ? "Claim approved, sent to finance" : "Verified for the next pay run"); }
   catch { toast("Couldn't save the decision."); }
 }
 
@@ -2440,6 +2449,7 @@ async function decideTrip(uid, t, stage, s){
 S.pay = {}; S.myPay = null; S.prYM = shiftYM(ymOf(todayStr()), new Date().getDate() <= 15 ? -1 : 0); S.prDoc = null; S.prMonths = {};
 let unsubPr = null;
 function subPayrun(){
+  subPayCheck();
   if (!S.owner || !db) return;
   if (unsubPr) unsubPr();
   unsubPr = db.doc(`payruns/${S.prYM}`).onSnapshot(s => { S.prDoc = s.data() || null; S.prExists = s.exists; renderPayrun(); }, () => {});
@@ -2497,6 +2507,8 @@ function renderPayrun(){
   $("#prTitle").textContent = `Pay run · ${ymLabel(ym)}`;
   $("#prStatus").className = "pill " + (locked ? "c-approved" : "c-pending"); $("#prStatus").textContent = locked ? `Locked ${dLong(ymd(new Date(S.prDoc.lockedAt)))}` : "Draft";
   $("#prLock").textContent = locked ? "Reopen pay run" : "Lock pay run";
+  { const pst = pcState(); $("#prSend").hidden = locked; $("#prSend").textContent = pst.k === "none" ? "Send to finance" : `Finance: ${pst.k === "approved" ? "approved" : pst.k === "query" ? "queries" : pst.k === "stale" ? "re-send needed" : "waiting"}`; $("#prSend").className = "btn sm" + (pst.k === "approved" ? " good" : ""); }
+  renderPayCheck();
   $("#prSwitch").textContent = S.payOn ? "Payslips: On" : "Payslips: Off"; $("#prSwitch").setAttribute("aria-pressed", String(!!S.payOn)); $("#prSwitch").className = "btn sm" + (S.payOn ? " good" : "");
   $("#prSwitch").title = S.payOn ? "Employees can see their locked payslips. Click to hide them." : "Employees can't see payslips. Click to let them see locked payslips.";
   const rows = teamIds().filter(id => (S.pay[id] && S.pay[id].salary) || !locked).map(payRow);
@@ -2505,7 +2517,7 @@ function renderPayrun(){
   $("#prStats").replaceChildren(...[[rows.filter(r => r.salary).length, "People paid"],[inr(sum("salary")), "Monthly salaries"],[inr(sum("salary") - sum("gross")), "LOP deductions"],[inr(sum("travel") + sum("reimb")), "Reimbursements"],
     [inr(sum("incentive")), "Incentives"],[inr(sum("recovery")), "Recoveries"],[inr(sum("total")), "Total payout"],[inr(c10), "Pay by 10th"],[inr(c15), "Pay by 15th"]].map(([v, l]) => h("div", { class:"stat" }, h("b", { text:v }), h("span", { text:l }))));
   $("#prNote").replaceChildren(...(ym >= ymOf(S.today) ? [h("div", { class:"banner", text:`${ymLabel(ym)} isn't over yet, so days after today aren't counted. Run payroll for a month after it ends (1st–9th of the next month).` })] : []),
-    ...(locked ? [h("div", { class:"banner", style:"background:var(--wfh-bg)", text:`This pay run is locked and figures are frozen. ${S.payOn ? "Payslips are on, so each employee can see theirs." : "Payslips are off, so employees can't see them yet. Use the Payslips switch above when you're ready."} You can still update payment status and dates. Reopen it to change amounts.` })] : []));
+    ...(locked && S.prDoc.finOk === false ? [h("div", { class:"banner", text:"Locked without finance approval." })] : []), ...(locked ? [h("div", { class:"banner", style:"background:var(--wfh-bg)", text:`This pay run is locked and figures are frozen. ${S.payOn ? "Payslips are on, so each employee can see theirs." : "Payslips are off, so employees can't see them yet. Use the Payslips switch above when you're ready."} You can still update payment status and dates. Reopen it to change amounts.` })] : []));
   const num = (v, on, w, dis) => h("input", { type:"number", min:"0", value: v || "", disabled: dis, onchange: e => on(Number(e.target.value) || 0), style:`width:${w || 90}px;padding:5px 8px;font-size:12px` });
   $("#prBody").replaceChildren(...(rows.length ? rows.map(r => h("tr", null,
     h("td", null, h("div", { style:"font-weight:600", text: r.name }), h("div", { class:"meta muted", text: [r.code, r.pos].filter(Boolean).join(" · ") })),
@@ -2533,6 +2545,80 @@ async function setPayStatus(r, status, paidOn){
   await savePrRow(r.id, patch);
   if (S.prDoc && S.prDoc.status === "locked" && S.pay[r.id]) { try { await enqueue(() => db.doc(`pay/${r.id}`).update({ slips: { [S.prYM]: patch } })); } catch {} }
 }
+// ---------- finance check of the pay run: paycheck/<ym> = { ym, rows:{id:{...}}, sig, sentAt, sentBy, fin:{ s: pending|approved|query, note, rowNotes, by, at } } ----------
+let unsubPc = null; S.pc = null;
+const PC_KEYS = ["salary","basis","working","lop","paidDays","gross","recovery","travel","reimb","incentive","total","cycle"];
+function pcSig(rows){ const str = JSON.stringify(Object.keys(rows).sort().map(id => [id, ...PC_KEYS.map(k => rows[id][k] ?? "")])); let h1 = 5381; for (let i = 0; i < str.length; i++) h1 = ((h1 << 5) + h1 + str.charCodeAt(i)) | 0; return String(h1 >>> 0); }
+function pcRowsNow(){ const out = {}; for (const r of teamIds().map(payRow).filter(r => r.salary)) { const { checks, locked, tripIds, ...rest } = r; out[r.id] = { ...Object.fromEntries(PC_KEYS.map(k => [k, rest[k]])), name: r.name, code: r.code, pos: r.pos, recoveryNote: r.recoveryNote, flags: checks.map(c => c.t) }; } return out; }
+function pcState(){
+  const pc = S.pc; if (!pc || !pc.sentAt) return { k:"none", label:"Not sent to finance", pill:"" };
+  const f = pc.fin || {};
+  if (S.owner && !(S.prDoc && S.prDoc.status === "locked") && Object.keys(S.prMonths || {}).length && pcSig(pcRowsNow()) !== pc.sig) return { k:"stale", label:"Figures changed since you sent it", pill:"c-absent" };
+  if (f.s === "approved") return { k:"approved", label:`Approved by finance${f.by ? " · " + nameOf(f.by) : ""}`, pill:"c-approved" };
+  if (f.s === "query") return { k:"query", label:"Finance has queries", pill:"c-absent" };
+  return { k:"pending", label:"Waiting for finance", pill:"c-pending" };
+}
+function subPayCheck(){
+  if (!db || !(S.owner || S.finance)) return;
+  if (unsubPc) unsubPc();
+  const ym = S.prYM;
+  unsubPc = db.doc(`paycheck/${ym}`).onSnapshot(s => { if (ym !== S.prYM) return; S.pc = s.data() || null; S.pcExists = s.exists; renderPayrun(); renderPayCheck(); renderInbox(); navBadges(); }, () => {});
+}
+async function sendPayCheck(){
+  if (!S.owner) return;
+  const rows = pcRowsNow(); if (!Object.keys(rows).length) { toast("Set at least one salary first."); return; }
+  const body = { ym: S.prYM, rows, sig: pcSig(rows), sentAt: Date.now(), sentBy: S.uid, fin: { s:"pending" } };
+  try { await enqueue(() => db.doc(`paycheck/${S.prYM}`).set(body)); S.pc = body; renderPayCheck(); renderPayrun(); toast("Sent to finance for checking"); }
+  catch { toast("Couldn't send to finance."); }
+}
+async function answerPayCheck(sv, note){
+  if (!S.finance || !S.pc) return;
+  const rowNotes = {}; document.querySelectorAll("#pcPanel [data-rownote]").forEach(el => { if (el.value.trim()) rowNotes[el.dataset.rownote] = el.value.trim().slice(0, 160); });
+  if (sv === "query" && !note && !Object.keys(rowNotes).length) { toast("Add a note or a comment on a row so the CEO knows what to check."); return; }
+  const fin = { s: sv, note: note || "", rowNotes, by: S.uid, at: Date.now() };
+  try { await enqueue(() => db.doc(`paycheck/${S.prYM}`).update({ fin })); S.pc = { ...S.pc, fin }; renderPayCheck(); navBadges(); toast(sv === "approved" ? "Pay run approved" : "Queries sent to the CEO"); }
+  catch { toast("Couldn't save. Ask the CEO to send this month again."); }
+}
+function renderPayCheck(){
+  const pan = $("#pcPanel"); if (!pan || $("#v-payrun").hidden) return;
+  if (pan.contains(document.activeElement) && /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const finView = S.finance && !S.owner, pc = S.pc, st = pcState(), f = (pc && pc.fin) || {};
+  $("#prMain").hidden = finView; $("#prImportPanel").hidden = finView;
+  const head = (title, extra) => h("div", { class:"row between" }, h("div", null, h("span", { class:"eyebrow", text: finView ? "Finance check · CEO and finance only" : "Finance check" }), h("h2", { text: title })), extra);
+  if (!finView) {
+    if (!S.owner) { pan.hidden = true; return; }
+    pan.hidden = false;
+    const rn = Object.entries(f.rowNotes || {});
+    pan.replaceChildren(head(`Finance check · ${ymLabel(S.prYM)}`, h("span", { class:"pill " + st.pill, text: st.label })),
+      h("p", { class:"muted", style:"margin:0;font-size:13px;max-width:85ch", text: st.k === "none" ? "When the figures look right, send this month to finance. They check every row and approve it, or send queries back. Lock the pay run after they approve." :
+        st.k === "stale" ? "You changed figures after sending. Send it again so finance checks the latest numbers." : st.k === "approved" ? "Finance approved these figures. You can lock the pay run." :
+        st.k === "query" ? "Finance sent queries. Fix the rows, then send it again." : `Sent ${dLong(ymd(new Date(pc.sentAt)))}. Finance hasn't answered yet.` }),
+      f.note ? h("div", { class:"banner", text:`Finance: ${f.note}` }) : null,
+      rn.length ? h("div", { class:"list" }, ...rn.map(([id, n]) => h("div", { class:"item" }, h("b", { text: (pc.rows[id] && pc.rows[id].name) || nameOf(id) }), h("span", { class:"meta", text: n })))) : null,
+      h("div", { class:"row" }, h("button", { class:"btn sm" + (st.k === "none" || st.k === "stale" || st.k === "query" ? " primary" : ""), type:"button", onclick: sendPayCheck, text: st.k === "none" ? "Send to finance" : "Send again" })));
+    return;
+  }
+  pan.hidden = false;
+  if (!pc || !pc.sentAt) { pan.replaceChildren(head(`Pay run · ${ymLabel(S.prYM)}`, h("input", { type:"month", value:S.prYM, onchange: e => { if (e.target.value) { S.prYM = e.target.value; S.pc = null; subPayCheck(); renderPayCheck(); } }, style:"width:auto" })),
+    h("div", { class:"empty", text:"The CEO hasn't sent this month's pay run for checking yet. You'll see it in your Inbox when they do." })); return; }
+  const rows = Object.entries(pc.rows || {}).sort((a, b) => (a[1].name || "").localeCompare(b[1].name || "")), sum = k => rows.reduce((a, [, r]) => a + (Number(r[k]) || 0), 0), done = f.s === "approved";
+  const note = h("input", { placeholder:"Overall note to the CEO (needed to send queries)", value: f.s === "query" ? f.note || "" : "", style:"flex:1;min-width:220px" });
+  pan.replaceChildren(head(`Pay run · ${ymLabel(S.prYM)}`, h("div", { class:"row" }, h("input", { type:"month", value:S.prYM, onchange: e => { if (e.target.value) { S.prYM = e.target.value; S.pc = null; subPayCheck(); renderPayCheck(); } }, style:"width:auto" }), h("span", { class:"pill " + st.pill, text: st.label }))),
+    h("p", { class:"muted", style:"margin:0;font-size:13px;max-width:85ch", text:`Sent by the CEO on ${dLong(ymd(new Date(pc.sentAt)))}. Check each row against attendance, leave and verified travel claims. You can't change figures here: approve, or add a comment on the rows that need fixing and send queries.` }),
+    h("div", { class:"stats" }, ...[[rows.length, "People"],[inr(sum("salary")), "Monthly salaries"],[inr(sum("salary") - sum("gross")), "LOP deductions"],[inr(sum("recovery")), "Recoveries"],[inr(sum("travel") + sum("reimb")), "Reimbursements"],[inr(sum("incentive")), "Incentives"],[inr(sum("total")), "Total payout"]]
+      .map(([v, l]) => h("div", { class:"stat" }, h("b", { text: String(v) }), h("span", { text:l })))),
+    h("div", { class:"tbl-wrap" }, h("table", { style:"min-width:1250px" },
+      h("thead", null, h("tr", null, ...["Employee","Salary","Paid days","LOP","Gross","Recovery","Travel","Other reimb.","Incentive","Total","Cycle","Flags","Comment"].map(t => h("th", { text:t })))),
+      h("tbody", null, ...rows.map(([id, r]) => h("tr", null,
+        h("td", null, h("div", { style:"font-weight:600", text: r.name }), h("div", { class:"meta muted", text: [r.code, r.pos].filter(Boolean).join(" · ") })),
+        h("td", { text: inr(r.salary) }), h("td", { text:`${num1(r.paidDays)} / ${r.basis}` }), h("td", { text: num1(r.lop) }), h("td", { text: inr(r.gross) }),
+        h("td", { text: r.recovery ? `${inr(r.recovery)}${r.recoveryNote ? " · " + r.recoveryNote : ""}` : "—" }), h("td", { text: r.travel ? inr(r.travel) : "—" }), h("td", { text: r.reimb ? inr(r.reimb) : "—" }), h("td", { text: r.incentive ? inr(r.incentive) : "—" }),
+        h("td", null, h("b", { class:"mono", text: inr(r.total) })), h("td", { text:`By ${r.cycle}th` }),
+        h("td", { style:"text-align:left;font-family:var(--f-body)" }, (r.flags || []).length ? h("div", { class:"meta", text: r.flags.join(" · ") }) : h("span", { class:"pill c-approved", text:"OK" })),
+        h("td", null, h("input", { "data-rownote": id, value: (f.rowNotes || {})[id] || "", placeholder:"Comment", style:"width:170px;font-size:12px;padding:5px 8px" }))))))),
+    h("div", { class:"row" }, h("button", { class:"btn primary", type:"button", disabled: done, onclick: () => answerPayCheck("approved", ""), text: done ? "Approved" : "Approve pay run" }), note,
+      h("button", { class:"btn", type:"button", onclick: () => answerPayCheck("query", note.value.trim().slice(0, 300)), text:"Send queries to CEO" })));
+}
 async function lockPayrun(){
   if (!S.owner) return;
   const ym = S.prYM, ref = db.doc(`payruns/${ym}`);
@@ -2543,12 +2629,15 @@ async function lockPayrun(){
   const rows = teamIds().map(payRow).filter(r => r.salary);
   if (!rows.length) { toast("Set at least one salary first."); return; }
   const blocking = rows.filter(r => r.checks.some(c => c.red && !/Month not over/.test(c.t)));
+  const pst = pcState();
+  if (pst.k !== "approved" && !S.prFinConfirm) { S.prFinConfirm = true; toast(pst.k === "stale" ? "Figures changed after finance's check. Send it again, or click Lock again to lock without finance approval." : "Finance hasn't approved this pay run. Click Lock again to lock without finance approval."); setTimeout(() => S.prFinConfirm = false, 8000); return; }
   if (blocking.length && !S.prConfirm) { S.prConfirm = true; toast(`${blocking.length} row(s) have open checks (red). Click Lock again to lock anyway.`); setTimeout(() => S.prConfirm = false, 8000); return; }
-  S.prConfirm = false;
+  S.prConfirm = false; S.prFinConfirm = false;
+  const finOk = pst.k === "approved";
   const final = {}; for (const r of rows) { const { checks, locked, ...rest } = r; final[r.id] = rest; }
   try {
     await enqueue(async () => {
-      if (S.prExists) await ref.update({ status:"locked", lockedAt: Date.now(), final }); else await ref.set({ status:"locked", lockedAt: Date.now(), final, rows:{} });
+      if (S.prExists) await ref.update({ status:"locked", lockedAt: Date.now(), final, finOk }); else await ref.set({ status:"locked", lockedAt: Date.now(), final, finOk, rows:{} });
       for (const r of rows) {
         const slip = { ym, salary: r.salary, basis: r.basis, working: r.working, lop: r.lop, paidDays: r.paidDays, gross: r.gross, recovery: r.recovery, recoveryNote: r.recoveryNote, travel: r.travel, reimb: r.reimb, incentive: r.incentive, total: r.total, cycle: r.cycle, status: r.status, paidOn: r.paidOn, at: Date.now() };
         if (S.pay[r.id]) await db.doc(`pay/${r.id}`).update({ slips: { [ym]: slip } }); else await db.doc(`pay/${r.id}`).set({ salary: r.salary, slips: { [ym]: slip } });
@@ -2936,11 +3025,12 @@ function celebrations(){
 function myTodos(){
   const t = [];
   const m = missedLive(); if (m) t.push({ t:`Regularise your missed punch-out on ${dLabel(m.date)}`, href:"#me", red:true });
-  for (const tr of tripsOf(S.uid)) { const st = tripState(S.uid, tr); if (st.k === "claim") t.push({ t:`File your claim for ${tr.to} by ${dLabel(addDays(tr.end || tr.start, P.teClaimDays))}`, href:"#travel" }); }
+  for (const tr of tripsOf(S.uid)) { const st = tripState(S.uid, tr); if (st.k === "claim") t.push({ t:`File your claim for ${tr.to} by ${dLabel(addDays(tr.end || tr.start, P.teClaimDays))}`, href:"#travel" }); if (st.k === "finq") t.push({ t:`Finance has a question on your ${tr.to} claim: ${tdec(S.uid, tr.tid).fin.note || "see the claim"}`, href:"#travel", red:true }); }
   if (isOpen(S.pfPeriod) && sheetOf(S.uid) && !(S.pfSelf && S.pfSelf.submittedAt)) t.push({ t:`KRA/KPI self-assessment for ${qLabel(S.pfPeriod)} is open · due ${dLong(cycleOf(S.pfPeriod).due || qRange(S.pfPeriod).to)}`, href:"#perf", red:true });
   if (S.pfOut && !(S.pfSelf && S.pfSelf.ackAt)) t.push({ t:"Your performance review is ready to discuss", href:"#perf" });
   const ob = myOnb(), obs = ob ? ob.status || "draft" : null;
   if (obs !== "submitted" && obs !== "verified") t.unshift({ t: obs === "returned" ? `HR sent your onboarding details back${ob.hr && ob.hr.note ? ": " + ob.hr.note : ""}` : "Complete your onboarding details for HR", href:"#onboard", red:true });
+  if (S.owner && S.pc && S.pc.sentAt && !(S.prDoc && S.prDoc.status === "locked")) { const pst = pcState(); if (pst.k === "query") t.push({ t:`Finance has queries on the ${ymLabel(S.prYM)} pay run`, href:"#payrun", red:true }); if (pst.k === "approved") t.push({ t:`Finance approved the ${ymLabel(S.prYM)} pay run. Lock it to release payslips.`, href:"#payrun" }); }
   const pend = reqList(S.root, S.dec).filter(r => r.status === "pending").length;
   if (pend) t.push({ t:`${pend} of your request${pend === 1 ? " is" : "s are"} waiting for approval`, href:"#me", info:true });
   return t;
@@ -2948,10 +3038,12 @@ function myTodos(){
 function inboxItems(){
   if (!canSeeTeam() && !S.finance) return [];
   const items = [], role = effRole();
+  if (S.finance && !S.owner && S.pc && S.pc.sentAt && !(S.pc.fin && S.pc.fin.s === "approved"))
+    items.push({ cat:"pay", id: S.pc.sentBy, at: S.pc.sentAt, title:`Pay run · ${ymLabel(S.prYM)} · check before payment`, sub:`${Object.keys(S.pc.rows || {}).length} people · ${inr(Object.values(S.pc.rows || {}).reduce((a, r) => a + (Number(r.total) || 0), 0))} total payout${S.pc.fin && S.pc.fin.s === "query" ? " · your queries are with the CEO" : ""}`, acts:[["Open pay run check", () => { location.hash = "#payrun"; }, "good"]] });
   if (!canSeeTeam()) {
     for (const id of Object.keys(S.team)) for (const t of tripsOf(id)) if (tripState(id, t).k === "fin")
       items.push({ cat:"travel", id, at: t.claim && t.claim.at || 0, title:`Finance check · ${inr(claimTotal(t))}`, sub:`${t.from} → ${t.to} · ${dLabel(t.start)}${t.client ? " · " + t.client : ""}`, flags:(t.claim.flags || []).map(x => ({ t:x, red:true })),
-        acts:[["Verify for payment", () => decideTrip(id, t, "fin", "approved"), "good"], ["Reject", () => decideTrip(id, t, "fin", "rejected"), "bad"]], link:"#travel" });
+        acts:[["Verify for payment", () => decideTrip(id, t, "fin", "approved"), "good"], ["Query or reject…", () => { location.hash = "#travel"; }, ""]], link:"#travel" });
     return items.sort((a, b) => a.at - b.at);
   }
   if (canCirculate()) for (const [id, d] of Object.entries(S.onb)) if (d && d.status === "submitted" && id !== S.uid)
@@ -2965,7 +3057,7 @@ function inboxItems(){
       const base = { cat:"travel", id, at: t.claim && t.claim.at || t.at || 0, sub: `${t.from} → ${t.to} · ${dLabel(t.start)} · ${TCAT[t.cat] || ""}${t.client ? " · " + t.client : ""}`, flags: (t.claim && t.claim.flags || t.flags || []).map(x => ({ t:x, red:true })) };
       if (st.k === "pre" && isMgr) items.push({ ...base, title:`Trip pre-approval · est. ${inr(t.est)}`, acts:[["Approve trip", () => decideTrip(id, t, "pre", "approved"), "good"], ["Reject", () => decideTrip(id, t, "pre", "rejected"), "bad"]] });
       if (st.k === "mgr" && isMgr) items.push({ ...base, title:`Expense claim · ${inr(tot)}`, acts:[["Approve claim", () => decideTrip(id, t, "mgr", "approved"), "good"], ["Reject", () => decideTrip(id, t, "mgr", "rejected"), "bad"]], link:"#travel" });
-      if (st.k === "fin" && isFinance()) items.push({ ...base, title:`Finance check · ${inr(tot)}`, acts:[["Verify for payment", () => decideTrip(id, t, "fin", "approved"), "good"], ["Reject", () => decideTrip(id, t, "fin", "rejected"), "bad"]], link:"#travel" });
+      if (st.k === "fin" && isFinance()) items.push({ ...base, title:`Finance check · ${inr(tot)}`, acts:[["Verify for payment", () => decideTrip(id, t, "fin", "approved"), "good"], ["Query or reject…", () => { location.hash = "#travel"; }, ""]], link:"#travel" });
     }
     const pf = S.pfTeam[id];
     if (pf && pf.self && pf.self.submittedAt && !(pf.rev && pf.rev.mgr && pf.rev.mgr.submittedAt) && (mgrOf(id) === mgrId() || !mgrOf(id)))
@@ -3062,7 +3154,7 @@ function renderInbox(){
   const f = team ? S.ibFilter : "mine";
   if (f === "mine") { $("#ibList").replaceChildren(...(todos.length ? todos.map(x => h("a", { href:x.href, class:"todo" + (x.red ? " red" : ""), text:x.t })) : [h("div", { class:"empty", text:"You're all caught up." })])); return; }
   const list = items.filter(i => f === "all" || i.cat === f);
-  const CAT = { leave:["Leave & attendance", "c-leave"], travel:["Travel", "c-wfh"], perf:["Performance", "c-office"], onboard:["Onboarding", "c-pending"] };
+  const CAT = { leave:["Leave & attendance", "c-leave"], travel:["Travel", "c-wfh"], perf:["Performance", "c-office"], onboard:["Onboarding", "c-pending"], pay:["Pay run", "c-office"] };
   $("#ibList").replaceChildren(...(list.length ? list.map(i => h("div", { class:"item", style:"align-items:flex-start" },
     h("div", { class:"who", style:"min-width:0;flex:1" }, avatar(i.id), h("div", { style:"min-width:0" },
       h("div", { class:"row", style:"gap:6px" }, h("span", { class:"pill " + CAT[i.cat][1], text: CAT[i.cat][0] }), h("b", { text: nameOf(i.id) })),
@@ -3161,6 +3253,7 @@ function route(){
   const role = effRole();
   const allowed = role === "admin" ? ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs","people","org", ...(S.owner && !S.viewAs.role ? ["payrun"] : []), "policy"] : role === "manager" ? ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs"] : ["home","inbox","me","travel","perf","payslips","onboard","directory","docs"];
   if (!S.payOn && !S.owner) { const i = allowed.indexOf("payslips"); if (i >= 0) allowed.splice(i, 1); }
+  if (S.finance && !S.owner && !S.viewAs.role && !allowed.includes("payrun")) allowed.splice(allowed.indexOf("directory"), 0, "payrun");
   let r = (location.hash || "").slice(1);
   if (!allowed.includes(r)) r = allowed[0];
   document.querySelectorAll(".side nav a").forEach(a => { a.hidden = !allowed.includes(a.dataset.route); a.setAttribute("aria-current", a.dataset.route === r ? "page" : "false"); });
@@ -3173,7 +3266,7 @@ function route(){
   if (r === "travel") renderTravel();
   if (r === "perf") renderPerf();
   if (r === "onboard") { S.obForm = false; renderOnboard(); }
-  if (r === "payrun") { subPayrun(); loadPrMonths(); renderPayrun(); }
+  if (r === "payrun") { subPayrun(); loadPrMonths(); renderPayrun(); renderPayCheck(); }
 }
 function renderAll(){ renderRole(); renderBanners(); renderMe(); renderMonth(); renderReqs(); renderRules(); renderTeam(); renderPeople(); renderOrg(); renderPayslips();
   if (!$("#v-reports").hidden) renderReports(); if (!$("#v-travel").hidden && !$("#v-travel").contains(document.activeElement)) renderTravel(); renderPayrun(); renderPerf(); renderHome(); renderInbox(); renderPayslipsPage(); renderDirectory(); renderDocs(); renderHrDocs(); renderMyDocs(); renderOnboard(); navBadges(); }
@@ -3236,6 +3329,8 @@ async function init(){
     subCur();
   }
   if (S.admin || S.finance) db.collection("finance").onSnapshot(qs => { S.finDec = {}; for (const d of qs.docs) S.finDec[d.id] = d.data(); renderAll(); }, () => {});
+  if (S.owner || S.finance) subPayCheck();
+  if (S.finance && !S.admin) db.collection("decisions").onSnapshot(qs => { S.teamDec = {}; for (const d of qs.docs) S.teamDec[d.id] = d.data(); renderAll(); }, () => {});
   if (S.finance && !S.admin) db.collection("att").onSnapshot(qs => { S.team = {}; for (const d of qs.docs) S.team[d.id] = d.data(); refreshNames(); renderAll(); }, () => {});
   if (S.admin) {
     db.collection("att").onSnapshot(qs => { S.team = {}; for (const d of qs.docs) S.team[d.id] = d.data(); refreshNames(); renderAll(); if (!$("#v-team").hidden) scheduleReport(); if (!$("#v-payrun").hidden) { clearTimeout(S.prT); S.prT = setTimeout(loadPrMonths, 400); } }, () => {});
@@ -3276,10 +3371,11 @@ $("#trSubmit").addEventListener("click", submitTrip);
 $("#trCsvMonth").value = S.today.slice(0, 7);
 $("#trCsv").addEventListener("click", downloadClaimsCsv);
 $("#prMonth").value = S.prYM;
-$("#prMonth").addEventListener("change", e => { if (!e.target.value) return; S.prYM = e.target.value; S.prDoc = null; S.prMonths = {}; subPayrun(); loadPrMonths(); renderPayrun(); });
+$("#prMonth").addEventListener("change", e => { if (!e.target.value) return; S.prYM = e.target.value; S.prDoc = null; S.prMonths = {}; S.pc = null; subPayrun(); loadPrMonths(); renderPayrun(); });
 $("#prRefresh").addEventListener("click", loadPrMonths);
 $("#prCsv").addEventListener("click", downloadPayCsv);
 $("#prSwitch").addEventListener("click", togglePayslips);
+$("#prSend").addEventListener("click", () => { $("#pcPanel").scrollIntoView({ behavior:"smooth" }); if (pcState().k === "none" || pcState().k === "stale") sendPayCheck(); });
 $("#hrDocsWho").addEventListener("change", e => { S.hrDocsSel = e.target.value; renderHrDocs(); });
 $("#prLock").addEventListener("click", lockPayrun);
 $("#prImport").addEventListener("click", importSalaries);
