@@ -2392,7 +2392,7 @@ function tripCard(id, t, mode){
     if (st.k === "pre" && isMgr) acts.push(...btns("pre", "Approve trip"));
     if (st.k === "mgr" && isMgr) acts.push(...btns("mgr", `Approve claim ${inr(total)}`));
     if (st.k === "fin" && isFinance()) {
-      const why = h("input", { placeholder:"Reason (needed to query or reject)", style:"min-width:200px;font-size:12px;padding:6px 9px" });
+      const why = h("input", { placeholder:"Reason (to query or reject)", style:"width:220px;flex:none;font-size:12px;padding:6px 9px" });
       const need = fn => () => { if (!why.value.trim()) { toast("Add a reason so the employee knows what to fix."); why.focus(); return; } fn(why.value.trim()); };
       acts.push(h("button", { class:"btn sm good", type:"button", onclick: () => decideTrip(id, t, "fin", "approved"), text:`Verify for payment ${inr(total)}` }), why,
         h("button", { class:"btn sm", type:"button", onclick: need(n => decideTrip(id, t, "fin", "query", n)), text:"Query" }),
@@ -2560,6 +2560,13 @@ function pcState(){
 }
 function subPayCheck(){
   if (!db || !(S.owner || S.finance)) return;
+  if (S.finance && !S.owner) {   // finance: watch every check, open the one waiting for them
+    if (unsubPc) { S.pc = (S.pcAll || {})[S.prYM] || null; return; }
+    unsubPc = db.collection("paycheck").onSnapshot(qs => { S.pcAll = {}; for (const d of qs.docs) S.pcAll[d.id] = d.data();
+      if (!S.pcPicked) { const open = Object.keys(S.pcAll).filter(k => S.pcAll[k].sentAt && !(S.pcAll[k].fin && S.pcAll[k].fin.s === "approved")).sort().pop(); if (open) S.prYM = open; S.pcPicked = true; }
+      S.pc = S.pcAll[S.prYM] || null; renderPayCheck(); renderInbox(); navBadges(); }, () => {});
+    return;
+  }
   if (unsubPc) unsubPc();
   const ym = S.prYM;
   unsubPc = db.doc(`paycheck/${ym}`).onSnapshot(s => { if (ym !== S.prYM) return; S.pc = s.data() || null; S.pcExists = s.exists; renderPayrun(); renderPayCheck(); renderInbox(); navBadges(); }, () => {});
@@ -2599,23 +2606,23 @@ function renderPayCheck(){
     return;
   }
   pan.hidden = false;
-  if (!pc || !pc.sentAt) { pan.replaceChildren(head(`Pay run · ${ymLabel(S.prYM)}`, h("input", { type:"month", value:S.prYM, onchange: e => { if (e.target.value) { S.prYM = e.target.value; S.pc = null; subPayCheck(); renderPayCheck(); } }, style:"width:auto" })),
+  if (!pc || !pc.sentAt) { pan.replaceChildren(head(`Pay run · ${ymLabel(S.prYM)}`, h("input", { type:"month", value:S.prYM, onchange: e => { if (e.target.value) { S.prYM = e.target.value; S.pc = (S.pcAll || {})[S.prYM] || null; renderPayCheck(); } }, style:"width:auto" })),
     h("div", { class:"empty", text:"The CEO hasn't sent this month's pay run for checking yet. You'll see it in your Inbox when they do." })); return; }
   const rows = Object.entries(pc.rows || {}).sort((a, b) => (a[1].name || "").localeCompare(b[1].name || "")), sum = k => rows.reduce((a, [, r]) => a + (Number(r[k]) || 0), 0), done = f.s === "approved";
   const note = h("input", { placeholder:"Overall note to the CEO (needed to send queries)", value: f.s === "query" ? f.note || "" : "", style:"flex:1;min-width:220px" });
-  pan.replaceChildren(head(`Pay run · ${ymLabel(S.prYM)}`, h("div", { class:"row" }, h("input", { type:"month", value:S.prYM, onchange: e => { if (e.target.value) { S.prYM = e.target.value; S.pc = null; subPayCheck(); renderPayCheck(); } }, style:"width:auto" }), h("span", { class:"pill " + st.pill, text: st.label }))),
+  pan.replaceChildren(head(`Pay run · ${ymLabel(S.prYM)}`, h("div", { class:"row" }, h("input", { type:"month", value:S.prYM, onchange: e => { if (e.target.value) { S.prYM = e.target.value; S.pc = (S.pcAll || {})[S.prYM] || null; renderPayCheck(); } }, style:"width:auto" }), h("span", { class:"pill " + st.pill, text: st.label }))),
     h("p", { class:"muted", style:"margin:0;font-size:13px;max-width:85ch", text:`Sent by the CEO on ${dLong(ymd(new Date(pc.sentAt)))}. Check each row against attendance, leave and verified travel claims. You can't change figures here: approve, or add a comment on the rows that need fixing and send queries.` }),
     h("div", { class:"stats" }, ...[[rows.length, "People"],[inr(sum("salary")), "Monthly salaries"],[inr(sum("salary") - sum("gross")), "LOP deductions"],[inr(sum("recovery")), "Recoveries"],[inr(sum("travel") + sum("reimb")), "Reimbursements"],[inr(sum("incentive")), "Incentives"],[inr(sum("total")), "Total payout"]]
       .map(([v, l]) => h("div", { class:"stat" }, h("b", { text: String(v) }), h("span", { text:l })))),
-    h("div", { class:"tbl-wrap" }, h("table", { style:"min-width:1250px" },
-      h("thead", null, h("tr", null, ...["Employee","Salary","Paid days","LOP","Gross","Recovery","Travel","Other reimb.","Incentive","Total","Cycle","Flags","Comment"].map(t => h("th", { text:t })))),
+    h("div", { class:"tbl-wrap" }, h("table", { style:"min-width:1150px" },
+      h("thead", null, h("tr", null, ...["Employee","Salary","Paid days","LOP","Gross","Recovery","Travel","Other reimb.","Incentive","Total","Cycle","Flags","Comment for CEO"].map(t => h("th", { text:t })))),
       h("tbody", null, ...rows.map(([id, r]) => h("tr", null,
         h("td", null, h("div", { style:"font-weight:600", text: r.name }), h("div", { class:"meta muted", text: [r.code, r.pos].filter(Boolean).join(" · ") })),
         h("td", { text: inr(r.salary) }), h("td", { text:`${num1(r.paidDays)} / ${r.basis}` }), h("td", { text: num1(r.lop) }), h("td", { text: inr(r.gross) }),
-        h("td", { text: r.recovery ? `${inr(r.recovery)}${r.recoveryNote ? " · " + r.recoveryNote : ""}` : "—" }), h("td", { text: r.travel ? inr(r.travel) : "—" }), h("td", { text: r.reimb ? inr(r.reimb) : "—" }), h("td", { text: r.incentive ? inr(r.incentive) : "—" }),
+        h("td", { title: r.recoveryNote || "", text: r.recovery ? inr(r.recovery) : "—" }, r.recovery && r.recoveryNote ? h("div", { class:"meta muted", style:"font-family:var(--f-body)", text: r.recoveryNote }) : null), h("td", { text: r.travel ? inr(r.travel) : "—" }), h("td", { text: r.reimb ? inr(r.reimb) : "—" }), h("td", { text: r.incentive ? inr(r.incentive) : "—" }),
         h("td", null, h("b", { class:"mono", text: inr(r.total) })), h("td", { text:`By ${r.cycle}th` }),
         h("td", { style:"text-align:left;font-family:var(--f-body)" }, (r.flags || []).length ? h("div", { class:"meta", text: r.flags.join(" · ") }) : h("span", { class:"pill c-approved", text:"OK" })),
-        h("td", null, h("input", { "data-rownote": id, value: (f.rowNotes || {})[id] || "", placeholder:"Comment", style:"width:170px;font-size:12px;padding:5px 8px" }))))))),
+        h("td", null, h("input", { "data-rownote": id, value: (f.rowNotes || {})[id] || "", placeholder:"Optional", style:"width:150px;font-size:12px;padding:5px 8px" }))))))),
     h("div", { class:"row" }, h("button", { class:"btn primary", type:"button", disabled: done, onclick: () => answerPayCheck("approved", ""), text: done ? "Approved" : "Approve pay run" }), note,
       h("button", { class:"btn", type:"button", onclick: () => answerPayCheck("query", note.value.trim().slice(0, 300)), text:"Send queries to CEO" })));
 }
@@ -3038,8 +3045,8 @@ function myTodos(){
 function inboxItems(){
   if (!canSeeTeam() && !S.finance) return [];
   const items = [], role = effRole();
-  if (S.finance && !S.owner && S.pc && S.pc.sentAt && !(S.pc.fin && S.pc.fin.s === "approved"))
-    items.push({ cat:"pay", id: S.pc.sentBy, at: S.pc.sentAt, title:`Pay run · ${ymLabel(S.prYM)} · check before payment`, sub:`${Object.keys(S.pc.rows || {}).length} people · ${inr(Object.values(S.pc.rows || {}).reduce((a, r) => a + (Number(r.total) || 0), 0))} total payout${S.pc.fin && S.pc.fin.s === "query" ? " · your queries are with the CEO" : ""}`, acts:[["Open pay run check", () => { location.hash = "#payrun"; }, "good"]] });
+  if (S.finance && !S.owner) for (const [ym, pc] of Object.entries(S.pcAll || {})) if (pc.sentAt && !(pc.fin && pc.fin.s === "approved"))
+    items.push({ cat:"pay", id: pc.sentBy, at: pc.sentAt, title:`Pay run · ${ymLabel(ym)} · check before payment`, sub:`${Object.keys(pc.rows || {}).length} people · ${inr(Object.values(pc.rows || {}).reduce((a, r) => a + (Number(r.total) || 0), 0))} total payout${pc.fin && pc.fin.s === "query" ? " · your queries are with the CEO" : ""}`, acts:[["Open pay run check", () => { S.prYM = ym; S.pc = pc; location.hash = "#payrun"; renderPayCheck(); }, "good"]] });
   if (!canSeeTeam()) {
     for (const id of Object.keys(S.team)) for (const t of tripsOf(id)) if (tripState(id, t).k === "fin")
       items.push({ cat:"travel", id, at: t.claim && t.claim.at || 0, title:`Finance check · ${inr(claimTotal(t))}`, sub:`${t.from} → ${t.to} · ${dLabel(t.start)}${t.client ? " · " + t.client : ""}`, flags:(t.claim.flags || []).map(x => ({ t:x, red:true })),
@@ -3148,9 +3155,9 @@ function renderInbox(){
   if (canSeeTeam() && cycleOf(S.pfPeriod) && scopeIds().some(id => !(id in S.pfTeam)) && !S.pfTeamLoading) { S.pfTeamLoading = true; loadPfTeam().finally(() => { S.pfTeamLoading = false; renderInbox(); }); }
   const items = inboxItems(), todos = myTodos();
   $("#ibTitle").textContent = team ? "Inbox" : "My to-dos";
-  $("#ibEyebrow").textContent = !team ? "Things to finish" : !canSeeTeam() ? "Claims waiting for finance" : effRole() === "admin" ? "Everything waiting on you · everyone" : "Everything waiting on you · your team";
-  const cats = [["all", "All", items.length], ["leave", "Leave & attendance", items.filter(i => i.cat === "leave").length], ["travel", "Travel & claims", items.filter(i => i.cat === "travel").length], ["perf", "Performance", items.filter(i => i.cat === "perf").length], ...(canCirculate() ? [["onboard", "Onboarding", items.filter(i => i.cat === "onboard").length]] : []), ["mine", "My to-dos", todos.length]];
-  $("#ibFilters").replaceChildren(...cats.filter(c => team || c[0] === "mine").map(([k, l, n]) => h("button", { class:"chipbtn", type:"button", "aria-pressed": String((team ? S.ibFilter : "mine") === k), onclick: () => { S.ibFilter = k; renderInbox(); }, text:`${l} ${n}` })));
+  $("#ibEyebrow").textContent = !team ? "Things to finish" : !canSeeTeam() ? "Pay run and claims waiting for finance" : effRole() === "admin" ? "Everything waiting on you · everyone" : "Everything waiting on you · your team";
+  const cats = [["all", "All", items.length], ["leave", "Leave & attendance", items.filter(i => i.cat === "leave").length], ["travel", "Travel & claims", items.filter(i => i.cat === "travel").length], ["perf", "Performance", items.filter(i => i.cat === "perf").length], ...(canCirculate() ? [["onboard", "Onboarding", items.filter(i => i.cat === "onboard").length]] : []), ...(S.finance && !S.owner ? [["pay", "Pay run", items.filter(i => i.cat === "pay").length]] : []), ["mine", "My to-dos", todos.length]];
+  $("#ibFilters").replaceChildren(...cats.filter(c => (team || c[0] === "mine") && (canSeeTeam() || !["leave","perf"].includes(c[0]))).map(([k, l, n]) => h("button", { class:"chipbtn", type:"button", "aria-pressed": String((team ? S.ibFilter : "mine") === k), onclick: () => { S.ibFilter = k; renderInbox(); }, text:`${l} ${n}` })));
   const f = team ? S.ibFilter : "mine";
   if (f === "mine") { $("#ibList").replaceChildren(...(todos.length ? todos.map(x => h("a", { href:x.href, class:"todo" + (x.red ? " red" : ""), text:x.t })) : [h("div", { class:"empty", text:"You're all caught up." })])); return; }
   const list = items.filter(i => f === "all" || i.cat === f);
@@ -3227,7 +3234,7 @@ function svgIcon(k){ const t = document.createElementNS("http://www.w3.org/2000/
 document.querySelectorAll("[data-icon]").forEach(el => el.prepend(svgIcon(el.dataset.icon)));
 const TITLES = { home:"Home", inbox:"Inbox", me:"Attendance & leave", reports:"Daily report", travel:"Travel & claims", perf:"Performance", payslips:"Payslips", onboard:"My onboarding", team:"Team", directory:"People directory", docs:"Policies & documents", people:"Employee records", org:"Structure", payrun:"Pay run", policy:"Policy settings" };
 function setShell(r){
-  const t = r === "team" ? (effRole() === "admin" ? "Overview" : "My team") : r === "inbox" && !canSeeTeam() ? "My to-dos" : TITLES[r] || "";
+  const t = r === "team" ? (effRole() === "admin" ? "Overview" : "My team") : r === "inbox" && !canSeeTeam() && !S.finance ? "My to-dos" : TITLES[r] || "";
   $("#tbTitle").textContent = t; document.title = `${t} · Atraski People`;
   document.querySelectorAll(".tabbar [data-tab]").forEach(a => a.setAttribute("aria-current", a.dataset.tab === r ? "page" : "false"));
   closeNav();
