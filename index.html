@@ -230,8 +230,25 @@ async function openAccess(){
   dlg.append(card); document.body.append(dlg);
 }
 
+// ---------- server calls (Drive, letters, hiring and exits) ----------
+const drive = {
+  async call(body){
+    const { data } = await sb.auth.getSession(); const tok = data && data.session && data.session.access_token;
+    const r = await fetch(SB_URL + "/functions/v1/drive", { method: "POST", headers: { "Content-Type": "application/json", apikey: SB_KEY, ...(tok ? { Authorization: "Bearer " + tok } : {}) }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.ok === false) throw new Error(j.error || ("The server answered " + r.status));
+    return j;
+  },
+  async admin(){ const { data, error } = await sb.rpc("drive_admin"); if (error) throw new Error(error.message); return data || {}; },
+  async setUrl(url){ const { error } = await sb.rpc("set_drive_url", { p_url: url || null }); if (error) throw new Error(error.message); }
+};
+const access = {
+  open: () => openAccess(),
+  async list(){ const { data, error } = await sb.rpc("list_members"); if (error) return []; return (data || []).map(m => ({ id: m.user_id, name: m.name, role: m.role, email: m.email || "", created: m.created_at })); }
+};
+
 // ---------- the interface the app expects ----------
-const caps = { db, user, downloads, assets };
+const caps = { db, user, downloads, assets, drive, access };
 window.claude = { use: async name => { await ready; return caps[name] || null; } };
 })();
 
@@ -528,6 +545,35 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
 .obsteps span.done{background:var(--wfh-bg);color:var(--wfh)}
 .obsteps span.now{background:var(--role-bg);color:var(--role)}
 .obreview dl{margin:0}
+.lcard{border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:grid;gap:10px;background:var(--surface)}
+.lcard .lhead{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.lcard .lname{font-weight:700;font-size:15px}
+.lcard .lsub{font-size:12.5px;color:var(--muted)}
+.lrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lrow input,.lrow select{width:auto;min-width:0;font-size:12.5px;padding:6px 9px}
+.lsteps{display:flex;gap:6px;flex-wrap:wrap}
+.lsteps span{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.lsteps span.done{background:var(--wfh-bg);color:var(--wfh)}
+.lsteps span.now{background:var(--role-bg);color:var(--role)}
+.hitem{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:start;padding:8px 0;border-top:1px dashed var(--line)}
+.hitem:first-child{border-top:0}
+.hitem .tick{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--sunk);color:var(--muted)}
+.hitem .tick.ok{background:var(--wfh-bg);color:var(--wfh)} .hitem .tick.no{background:#fdecec;color:var(--absent)}
+.fnfgrid{display:grid;grid-template-columns:1fr 130px 32px;gap:6px;align-items:center}
+.fnfgrid input{font-size:12.5px;padding:6px 9px}
+#letterDlg{position:fixed;inset:0;background:rgba(8,12,24,.5);z-index:60;display:grid;place-items:center;padding:16px}
+#letterDlg .sheet{background:#fff;color:#121A2F;max-width:760px;width:100%;max-height:calc(100dvh - 32px);overflow:auto;border-radius:14px;padding:28px 34px;box-shadow:var(--shadow-lg)}
+#letterDlg .sheet h3{text-align:center;margin:14px 0 6px;font-size:16px;letter-spacing:.04em}
+#letterDlg .sheet .lp{white-space:pre-line;margin:8px 0;font-size:14px;line-height:1.55}
+#letterDlg .sheet .lh{font-weight:700;margin:14px 0 4px;font-size:13.5px}
+#letterDlg .sheet table{border-collapse:collapse;width:100%;font-size:13px;margin:6px 0}
+#letterDlg .sheet td{border:1px solid #D7DCE6;padding:6px 9px;vertical-align:top}
+#letterDlg .sheet td:first-child{background:#F4F6FA;font-weight:600;width:38%}
+#letterDlg .sheet .lnote{font-size:12px;color:#5D667C;font-style:italic;margin:8px 0}
+#letterDlg .sheet .lsign{color:#0B7A5C;font-weight:700;margin:12px 0}
+#letterDlg .brandline{font-weight:800;color:#0F1730;font-size:18px} #letterDlg .brandsub{font-size:11px;color:#5D667C;border-bottom:1px solid #D7DCE6;padding-bottom:10px}
+@media print{body *{visibility:hidden} #letterDlg,#letterDlg *{visibility:visible} #letterDlg{position:absolute;inset:0;background:none;padding:0} #letterDlg .sheet{box-shadow:none;max-height:none;border-radius:0} #letterDlg .noprint{display:none}}
+.codebox{font-family:var(--f-mono);font-size:11.5px;white-space:pre;overflow:auto;max-height:220px;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:10px}
 </style>
 <div class="app" id="app">
   <aside class="side" id="side" aria-label="Main menu">
@@ -546,6 +592,7 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
         <a href="#directory" data-route="directory" data-icon="directory">People directory</a>
         <a href="#docs" data-route="docs" data-icon="book">Policies &amp; documents</a></div>
       <div class="ng"><div class="ngroup">Admin</div>
+        <a href="#life" data-route="life" data-icon="team" hidden>Hiring &amp; exits</a>
         <a href="#people" data-route="people" data-icon="idcard" hidden>Employee records</a>
         <a href="#org" data-route="org" data-icon="org" hidden>Structure</a>
         <a href="#payrun" data-route="payrun" data-icon="banknote" hidden>Pay run</a>
@@ -646,7 +693,7 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
       </div>
     </div>
     <div class="panel stack" id="myDocsPanel">
-      <div class="row between"><div><span class="eyebrow">Kept by HR · only you and HR can see this</span><h2>My documents</h2></div><a class="btn sm" id="myDocsFolder" target="_blank" rel="noopener" hidden>Open my folder</a></div>
+      <div class="row between"><div><span class="eyebrow">Only you and the CEO can see this</span><h2>My documents</h2></div><a class="btn sm" id="myDocsFolder" target="_blank" rel="noopener" hidden>Open my folder</a></div>
       <div class="list" id="myDocs"></div>
     </div>
   </section>
@@ -740,6 +787,47 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
       <form class="obform" id="obForm" novalidate></form>
       <div class="row" id="obActs"></div>
     </div>
+    <div class="panel stack" id="myLettersPanel" hidden>
+      <div><span class="eyebrow">Issued to you · signed copies go to your email</span><h2>My letters</h2></div>
+      <div class="list" id="myLetters"></div>
+    </div>
+    <div class="panel stack" id="myExitPanel">
+      <div><span class="eyebrow">ATR-HR-10 · notice, handover and full &amp; final</span><h2 id="myExitTitle">Resignation</h2></div>
+      <div id="myExit" class="stack"></div>
+    </div>
+  </section>
+
+  <!-- HIRING & EXITS (CEO) -->
+  <section id="v-life" class="stack" hidden>
+    <div class="panel stack" id="lfAddPanel">
+      <div class="row between"><div><span class="eyebrow">Step 1 · external candidate, no login needed</span><h2>Invite a candidate</h2></div><span class="pill" id="lfDrivePill"></span></div>
+      <p class="muted" style="margin:0;font-size:13px;max-width:90ch">They get a private link by email. They fill in their personal details and upload Aadhaar, PAN, photo, education and address proof straight into your Drive. Then you issue the Letter of Intent from here, they confirm it online, and on their joining day one click makes them an employee with their appointment letter.</p>
+      <div class="fgrid">
+        <label class="f">Full name<input id="lfName" autocomplete="off"></label>
+        <label class="f">Email<input id="lfEmail" type="email" autocomplete="off"></label>
+        <label class="f">Mobile<input id="lfPhone" type="tel" autocomplete="off"></label>
+        <label class="f">Position<input id="lfRole" list="lfPosList" autocomplete="off"></label>
+        <label class="f">Department<select id="lfDept"></select></label>
+        <label class="f">Company<select id="lfCo"><option>Atraski</option><option>At Buzz</option></select></label>
+        <label class="f">Category<select id="lfType"><option value="employee">Employee · 6-month probation</option><option value="trainee">Trainee</option><option value="intern3">Intern · 3 months</option><option value="intern6">Intern · 6 months</option></select></label>
+        <label class="f">Office<select id="lfBase"></select></label>
+        <label class="f">Reports to<select id="lfMgr"></select></label>
+        <label class="f">Monthly CTC (₹)<input id="lfCtc" type="number" min="0" step="500"></label>
+        <label class="f">Joining date<input id="lfJoin" type="date"></label>
+      </div>
+      <datalist id="lfPosList"></datalist>
+      <div class="row"><button class="btn primary" id="lfInvite" type="button">Send invite</button><span class="muted" id="lfInviteMsg" style="font-size:13px"></span></div>
+    </div>
+    <div class="panel stack"><div class="row between"><div><span class="eyebrow">Steps 2–4 · details → LOI → joining</span><h2>Candidates</h2></div><div class="row" id="lfCandFilter"></div></div><div class="list" id="lfCands"></div></div>
+    <div class="panel stack"><div><span class="eyebrow">ATR-HR-01 · shows 30 days before probation ends</span><h2>Probation reviews</h2></div><div class="list" id="lfProb"></div></div>
+    <div class="panel stack">
+      <div class="row between"><div><span class="eyebrow">ATR-HR-10 · resignation → handover → No Dues → F&amp;F → relieving letter</span><h2>Exits</h2></div><button class="btn sm" id="lfSepBtn" type="button">Start a separation</button></div>
+      <div id="lfSep" class="lrow" hidden></div>
+      <div class="list" id="lfExits"></div>
+    </div>
+    <div class="panel stack"><div><span class="eyebrow">People who joined before Atraski People</span><h2>Appointment letters for the current team</h2></div>
+      <p class="muted" style="margin:0;font-size:13px;max-width:90ch">Issue each person's appointment, internship or traineeship letter from their records (position, joining date, manager, office and salary). They read and accept it in the app, and the signed copy goes to their Drive folder.</p>
+      <div class="list" id="lfStaff"></div></div>
   </section>
 
   <!-- PAYSLIPS -->
@@ -835,6 +923,7 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
           <span class="pill" id="prStatus"></span>
           <button class="btn sm" id="prRefresh" type="button">Refresh attendance</button>
           <button class="btn sm" id="prCsv" type="button">Download CSV</button>
+          <button class="btn sm" id="prDrive" type="button">Save to Drive</button>
           <button class="btn sm" id="prSend" type="button">Send to finance</button>
           <button class="btn sm" id="prSwitch" type="button" aria-pressed="false">Payslips: Off</button>
           <button class="btn sm primary" id="prLock" type="button">Lock pay run</button>
@@ -858,6 +947,23 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
 
   <!-- POLICY -->
   <section id="v-policy" class="stack" hidden>
+    <div class="panel stack" id="drivePanel" hidden>
+      <div class="row between"><div><span class="eyebrow">CEO only</span><h2>Google Drive &amp; automation</h2></div><span class="pill" id="drvStatus"></span></div>
+      <p class="muted" style="margin:0;font-size:13px;max-width:92ch">Everything is saved to your private <b>Atraski People</b> folder in Google Drive, which only you can open: each person's documents and letters, punch logs, leave and claims registers, the employee register, hiring and exit records, and pay runs. Letters and emails go out from your Gmail. A small script you run once in your own Google account does the writing, so nothing else gets access to your Drive.</p>
+      <ol class="rules" id="drvSteps" style="margin:0">
+        <li><b>Open</b> <a href="https://script.new" target="_blank" rel="noopener">script.new</a> while signed in to the Google account that owns the folder.</li>
+        <li><b>Paste</b> the script: <button class="btn sm" id="drvCopy" type="button">Copy the script</button> then replace everything in the editor and press save.</li>
+        <li><b>Deploy</b> → New deployment → type <b>Web app</b> → Execute as <b>Me</b> → Who has access <b>Anyone</b> → Deploy → allow the permissions Google asks for.</li>
+        <li><b>Paste the Web app link</b> (it ends in <code>/exec</code>) below and save. Then test it.</li>
+      </ol>
+      <div id="drvCode" hidden></div>
+      <div class="lrow"><input id="drvUrl" placeholder="https://script.google.com/macros/s/…/exec" style="flex:1;min-width:240px"><button class="btn sm primary" id="drvSave" type="button">Save link</button><button class="btn sm" id="drvTest" type="button">Test connection</button><button class="btn sm" id="drvSync" type="button">Back up now</button><a class="btn sm" id="drvOpen" target="_blank" rel="noopener">Open Drive folder</a></div>
+      <div class="muted" id="drvLog" style="font-size:12.5px"></div>
+      <div><span class="eyebrow">Runs by itself, no HR person needed</span></div>
+      <label class="chk"><input type="checkbox" id="autoApprove"> Approve leave, WFH, short leave and optional holidays that follow the policy (no flags) if the manager hasn't acted within 24 hours. Anything flagged, LWP and regularisations stay with the manager and you.</label>
+      <label class="chk"><input type="checkbox" id="autoCycles"> Open the KRA/KPI review cycle on the 1st and the 16th of every month.</label>
+      <label class="chk"><input type="checkbox" id="driveNightly"> Back up everything to Drive every night at 2 AM.</label>
+    </div>
     <div class="panel stack">
       <div><span class="eyebrow">Office hours</span><h2>Working days and punch-in</h2></div>
       <div class="fgrid">
@@ -1273,7 +1379,7 @@ function entitlement(id){
   if (!elFrom || elFrom <= today) out.el = Math.min(Number(P.quota.el), mIncl(!elFrom || elFrom < ys ? ys : elFrom, today) * Number(P.quota.el) / 12) + Math.min(Number(p.elCarry) || 0, Number(P.elCarryMax));
   return out;
 }
-function isProvisional(id){ const j = joinOf(id); return etypeOf(id) === "employee" && !!j && monthsBetween(j, S.today) < Number(P.probMonths); }
+function isProvisional(id){ const p = person(id), j = joinOf(id); if (etypeOf(id) !== "employee" || !j || p.confirmed) return false; if (p.probEnd) return S.today < p.probEnd; return monthsBetween(j, S.today) < Number(P.probMonths); }
 function isConfirmed(id){ return etypeOf(id) === "employee" && !isProvisional(id); }
 function leaveUsed(id, skipDebit){
   const used = {}, pend = {}, y0 = lyStart(S.today), y1 = lyEnd(S.today);
@@ -1899,10 +2005,11 @@ function renderMyDocs(){
   const d = docsOf(S.uid), it = (d && d.items) || {}, f = $("#myDocsFolder");
   f.hidden = !(d && driveOk(d.folder)); if (!f.hidden) f.href = d.folder;
   const pr = docProgress(d);
-  host.replaceChildren(h("div", { class:"meta", text:`${pr.got} of ${pr.total} received${pr.ver ? ` · ${pr.ver} verified` : ""}. If something is missing, share it with HR.` }),
+  host.replaceChildren(h("div", { class:"meta", text:`${pr.got} of ${pr.total} received${pr.ver ? ` · ${pr.ver} verified` : ""}. Upload what's missing here; it goes straight to your private folder.` }),
     ...HRDOCS.map(([k, label]) => { const x = it[k] || {}, st = DOCST[x.status || "pending"] || DOCST.pending;
       return h("div", { class:"item" }, h("div", { style:"font-weight:600;flex:1;min-width:0", text: label }),
-        driveOk(x.url) ? h("a", { class:"btn sm", href:x.url, target:"_blank", rel:"noopener noreferrer", text:"Open" }) : null, h("span", { class:"pill " + st[1], text: st[0] })); }));
+        (!x.status || x.status === "pending") && ["aadhaar","pan","bank","photo","education","experience","address"].includes(k) ? busyBtn("up_" + k, "Upload", () => pickAndUpload(f => srv({ op:"upload", key:k, mime:f.mime, data:f.data }, "Uploaded to your folder", "up_" + k))) : null,
+        h("span", { class:"pill " + st[1], text: st[0] })); }));
 }
 // ---------- employee onboarding form (onboard/<uid>: { status: draft|submitted|returned|verified, f:{...}, submittedAt, hr:{ note, by, at } }) ----------
 const OB_SECTIONS = [
@@ -1972,7 +2079,7 @@ function renderOnboard(){
   };
   $("#obForm").replaceChildren(...OB_SECTIONS.map(([title, fields]) => h("div", { class:"obsec" }, h("h3", { text: title }), h("div", { class:"obgrid" }, ...fields.filter(x => !obSkip(x[0], f)).map(field)))));
   $("#obForm").onfocusin = () => { S.obForm = true; };
-  $("#obActs").replaceChildren(...(locked ? [] : [h("button", { class:"btn", type:"button", onclick: () => saveOnboard(false), text:"Save draft" }), h("button", { class:"btn primary", type:"button", onclick: () => saveOnboard(true), text:"Submit to HR" })]));
+  $("#obActs").replaceChildren(...(locked ? [] : [h("button", { class:"btn", type:"button", onclick: () => saveOnboard(false), text:"Save draft" }), h("button", { class:"btn primary", type:"button", onclick: () => saveOnboard(true), text:"Submit" })]));
 }
 async function saveOnboard(submit){
   const f = obRead(), err = obCheck(f); S.obForm = false;
@@ -2004,6 +2111,256 @@ function onbReview(id){
     st === "draft" ? h("div", { class:"meta", text:"Still a draft. The employee hasn't submitted it." }) :
     h("div", { class:"row", style:"gap:8px" }, st !== "verified" ? h("button", { class:"btn sm good", type:"button", onclick: () => hrOnboard(id, "verified"), text:"Verify" }) : null,
       note, h("button", { class:"btn sm", type:"button", onclick: () => { if (!note.value.trim()) { toast("Add a note so they know what to fix."); note.focus(); return; } hrOnboard(id, "returned", note.value.trim().slice(0, 200)); }, text:"Send back" })));
+}
+// =====================================================================================
+// HIRE-TO-EXIT (no HR person): candidates, letters, probation, resignation, handover, F&F; Google Drive
+// =====================================================================================
+const DRIVE_GS = "/**\n * Atraski People \u2192 Google Drive bridge.\n * Runs under the CEO's own Google account, so everything it writes stays in that account's Drive and\n * every email goes out from that account's Gmail. The app's server sends it requests that carry SECRET.\n *\n * Set up (one time): script.new \u2192 paste this file \u2192 Deploy \u2192 New deployment \u2192 Web app \u2192\n * Execute as: Me \u00b7 Who has access: Anyone \u2192 Deploy \u2192 copy the /exec link into Atraski People.\n * The app fills in SECRET and ROOT for you on its \"Google Drive\" panel.\n */\nconst SECRET = '__SECRET__';\nconst ROOT = '__ROOT__';          // the private \"Atraski People\" folder\nconst MAX_ROWS = 20000;\n\nfunction doGet() {\n  return ContentService.createTextOutput('Atraski People Drive bridge is running.');\n}\n\nfunction doPost(e) {\n  let out;\n  try {\n    const req = JSON.parse((e && e.postData && e.postData.contents) || '{}');\n    if (!req.secret || req.secret !== SECRET) throw new Error('Not allowed');\n    out = handle(req);\n  } catch (err) {\n    out = { ok: false, error: String((err && err.message) || err) };\n  }\n  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);\n}\n\nfunction handle(req) {\n  switch (req.action) {\n    case 'ping': return { ok: true, folder: DriveApp.getFolderById(ROOT).getName(), url: DriveApp.getFolderById(ROOT).getUrl(), email: Session.getEffectiveUser().getEmail() };\n    case 'sheet': return writeSheet(req);\n    case 'file': return saveFile(req);\n    case 'letter': return makeLetter(req);\n    case 'mail': return sendMail(req);\n    case 'batch': return { ok: true, results: (req.items || []).map(it => { try { return handle(it); } catch (err) { return { ok: false, error: String(err.message || err) }; } }) };\n    default: throw new Error('Unknown action ' + req.action);\n  }\n}\n\n// ---------- folders ----------\nfunction clean(name) { return String(name || '').replace(/[\\\\/:*?\"<>|#]/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 120) || 'Untitled'; }\nfunction folderAt(path) {\n  let f = DriveApp.getFolderById(ROOT);\n  (path || []).forEach(p => { const n = clean(p); const it = f.getFoldersByName(n); f = it.hasNext() ? it.next() : f.createFolder(n); });\n  return f;\n}\nfunction replaceIn(folder, name) { const it = folder.getFilesByName(name); while (it.hasNext()) it.next().setTrashed(true); }\n\n// ---------- sheets ----------\nfunction safeCell(v) {\n  if (v === null || v === undefined) return '';\n  if (typeof v === 'number' || typeof v === 'boolean') return v;\n  const s = String(v);\n  return /^[=+\\-@]/.test(s) ? \"'\" + s : s;   // never let data become a formula\n}\nfunction writeSheet(req) {\n  const folder = folderAt(req.path), name = clean(req.name);\n  const it = folder.getFilesByName(name);\n  let ss;\n  if (it.hasNext()) ss = SpreadsheetApp.open(it.next());\n  else { ss = SpreadsheetApp.create(name); DriveApp.getFileById(ss.getId()).moveTo(folder); }\n  const tabs = req.tabs || [{ name: 'Sheet1', rows: req.rows || [] }];\n  tabs.forEach((t, i) => {\n    const tn = clean(t.name).slice(0, 90);\n    let sh = ss.getSheetByName(tn);\n    if (!sh) {\n      const first = ss.getSheets()[0];\n      sh = (i === 0 && ss.getSheets().length === 1 && first.getLastRow() === 0) ? first.setName(tn) : ss.insertSheet(tn);\n    }\n    sh.clearContents();\n    const rows = (t.rows || []).slice(0, MAX_ROWS);\n    if (!rows.length) return;\n    const w = Math.max.apply(null, rows.map(r => r.length));\n    const vals = rows.map(r => { const a = r.map(safeCell); while (a.length < w) a.push(''); return a; });\n    sh.getRange(1, 1, vals.length, w).setValues(vals);\n    sh.getRange(1, 1, 1, w).setFontWeight('bold').setBackground('#EEF1F7');\n    sh.setFrozenRows(1);\n  });\n  return { ok: true, url: ss.getUrl(), id: ss.getId(), folderUrl: folder.getUrl() };\n}\n\n// ---------- uploaded files ----------\nfunction saveFile(req) {\n  const folder = folderAt(req.path), name = clean(req.name);\n  replaceIn(folder, name);\n  const blob = Utilities.newBlob(Utilities.base64Decode(req.data), req.mime || 'application/octet-stream', name);\n  const f = folder.createFile(blob);\n  return { ok: true, url: f.getUrl(), id: f.getId(), folderUrl: folder.getUrl() };\n}\n\n// ---------- letters: Google Doc + PDF ----------\n// req.blocks: [{t:'title'|'h'|'p'|'kv'|'sign'|'note', text, rows:[[k,v]]}]\nfunction makeLetter(req) {\n  const folder = folderAt(req.path), name = clean(req.name);\n  const doc = DocumentApp.create(name);\n  const body = doc.getBody();\n  body.setMarginTop(54).setMarginBottom(54).setMarginLeft(60).setMarginRight(60);\n  const head = body.getParagraphs()[0];\n  head.setText('ATRASKI INDIA').setHeading(DocumentApp.ParagraphHeading.NORMAL).setBold(true).setFontSize(16).setForegroundColor('#0F1730');\n  body.appendParagraph(req.company || 'Atraski India \u00b7 At Buzz').setFontSize(9).setForegroundColor('#5D667C').setBold(false);\n  body.appendHorizontalRule();\n  (req.blocks || []).forEach(b => {\n    if (b.t === 'title') body.appendParagraph(b.text).setHeading(DocumentApp.ParagraphHeading.HEADING2).setAlignment(DocumentApp.HorizontalAlignment.CENTER);\n    else if (b.t === 'h') body.appendParagraph(b.text).setHeading(DocumentApp.ParagraphHeading.HEADING4);\n    else if (b.t === 'kv') {\n      const t = body.appendTable((b.rows || []).map(r => [String(r[0]), String(r[1] == null ? '' : r[1])]));\n      t.setBorderWidth(0.5).setBorderColor('#D7DCE6');\n      for (let i = 0; i < t.getNumRows(); i++) { t.getCell(i, 0).setBackgroundColor('#F4F6FA').editAsText().setBold(true).setFontSize(10); t.getCell(i, 1).editAsText().setFontSize(10); }\n    }\n    else if (b.t === 'note') body.appendParagraph(b.text).setFontSize(9).setForegroundColor('#5D667C').setItalic(true);\n    else if (b.t === 'sign') { body.appendParagraph(b.text).setBold(true).setForegroundColor('#0B7A5C'); }\n    else body.appendParagraph(b.text || '').setFontSize(11).setBold(false).setItalic(false).setForegroundColor('#121A2F');\n  });\n  doc.saveAndClose();\n  const docFile = DriveApp.getFileById(doc.getId());\n  docFile.moveTo(folder);\n  replaceIn(folder, name + '.pdf');\n  const pdf = folder.createFile(docFile.getAs('application/pdf').setName(name + '.pdf'));\n  if (!req.keepDoc) docFile.setTrashed(true);\n  return { ok: true, url: pdf.getUrl(), id: pdf.getId(), docUrl: req.keepDoc ? docFile.getUrl() : '', folderUrl: folder.getUrl() };\n}\n\n// ---------- email from the CEO's Gmail ----------\nfunction sendMail(req) {\n  if (!req.to) throw new Error('No recipient');\n  const opts = { name: req.fromName || 'Atraski People', htmlBody: req.html || undefined };\n  if (req.cc) opts.cc = req.cc;\n  if (req.replyTo) opts.replyTo = req.replyTo;\n  if (req.attach && req.attach.length) opts.attachments = req.attach.map(id => DriveApp.getFileById(id).getBlob());\n  MailApp.sendEmail(req.to, req.subject || 'Atraski People', req.text || '', opts);\n  return { ok: true, left: MailApp.getRemainingDailyQuota() };\n}\n";
+let drv = null, acc = null;
+Object.assign(S, { cands:{}, lifes:{}, exits:{}, myLife:null, myExit:null, drvAdmin:null, drvLog:null, auto:{ autoApprove:true, autoCycles:true, driveNightly:true }, accList:[], accAt:0, lfFilter:"open", lfBusy:{} });
+const CSTAGE = { invited:["Invited · waiting for details","c-pending"], returned:["Sent back for changes","c-absent"], submitted:["Details in · issue the LOI","c-office"], loi_sent:["LOI sent · waiting for them","c-pending"],
+  loi_accepted:["LOI accepted · joining next","c-approved"], declined:["Declined","c-absent"], joined:["Joined","c-wfh"] };
+const XSTAGE = { notice:["Serving notice","c-pending"], nodues:["No Dues issued · approve F&F","c-office"], fnf:["F&F approved · pay it","c-office"], closed:["Closed · relieved","c-approved"], withdrawn:["Withdrawn","c-absent"] };
+const HANDOVER = [["h1","Handover note: tasks, status, deadlines, client contacts and logins","manager"],["h2","Walkthrough of each live account or project to the successor","manager"],
+  ["h3","All files moved to the Atraski Drive; local copies deleted","ceo"],["h4","All company assets returned with accessories (ATR-HR-07)","ceo"],["h5","Advances, claims and recoveries listed (ATR-HR-09)","finance"]];
+const appUrl = () => location.href.replace(/[#?].*$/, "").replace(/index\.html$/, "");
+async function srv(body, okMsg, key){
+  if (!drv) { toast("This needs the live app."); return null; }
+  if (key) { if (S.lfBusy[key]) return null; S.lfBusy[key] = true; renderLife(); }
+  try { const r = await drv.call(body); if (okMsg) toast(typeof okMsg === "function" ? okMsg(r) : okMsg); return r; }
+  catch (e) { toast(String(e.message || e)); return null; }
+  finally { if (key) { delete S.lfBusy[key]; renderLife(); renderMyExit(); renderMyLetters(); } }
+}
+const busyBtn = (key, label, on, cls) => h("button", { class:"btn sm" + (cls ? " " + cls : ""), type:"button", disabled: !!S.lfBusy[key], onclick: on, text: S.lfBusy[key] ? "Working…" : label });
+function fileToB64(file){ return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = () => rej(r.error); r.readAsDataURL(file); }); }
+async function pickAndUpload(onFile){
+  const inp = h("input", { type:"file", accept:".pdf,.jpg,.jpeg,.png,.webp,.heic,.doc,.docx,application/pdf,image/*" });
+  inp.onchange = async () => { const f = inp.files && inp.files[0]; if (!f) return; if (f.size > 8 * 1024 * 1024) { toast("Files can be up to 8 MB."); return; } const mime = f.type || (/\.pdf$/i.test(f.name) ? "application/pdf" : ""); await onFile({ mime, data: await fileToB64(f), name: f.name }); };
+  inp.click();
+}
+function exitOf(id){ return id === S.uid && !canCirculate() && !S.admin && !S.finance ? S.myExit : S.exits[id]; }
+const finalInFnf = (id, ym) => { const ex = S.exits[id]; return !!(ex && ex.stage !== "withdrawn" && ex.lwd && ymOf(ex.lwd) <= ym); };
+const payIds = () => teamIds().filter(id => !finalInFnf(id, S.prYM));
+function probEndOfP(id){ const p = person(id), j = joinOf(id); if (etypeOf(id) !== "employee" || !j || p.confirmed) return null; return p.probEnd || addMonthsD(j, Number(P.probMonths)); }
+function noticeFor(id, on){
+  const p = person(id), j = joinOf(id); if (p.notice) return Number(p.notice);
+  if (j && on < addDays(j, 14)) return 1;
+  if (etypeOf(id) !== "employee") return 15;
+  if (isProvisional(id)) return 15;
+  return 30;
+}
+// ---------- letter viewer ----------
+function letterView(title, blocks, sign){
+  const old = $("#letterDlg"); if (old) old.remove();
+  const body = h("div", { class:"sheet", role:"dialog", "aria-label": title },
+    h("div", { class:"row between noprint", style:"margin-bottom:8px" }, h("b", { text: title }), h("div", { class:"row" }, h("button", { class:"btn sm", type:"button", onclick: () => window.print(), text:"Print / save as PDF" }), h("button", { class:"btn sm", type:"button", onclick: () => $("#letterDlg").remove(), text:"Close" }))),
+    h("div", { class:"brandline", text:"ATRASKI INDIA" }), h("div", { class:"brandsub", text:"Atraski India · At Buzz" }),
+    ...(blocks || []).map(b => b.t === "title" ? h("h3", { text: b.text }) : b.t === "h" ? h("div", { class:"lh", text: b.text }) : b.t === "note" ? h("div", { class:"lnote", text: b.text }) : b.t === "sign" ? h("div", { class:"lsign", text: b.text })
+      : b.t === "kv" ? h("table", null, h("tbody", null, ...(b.rows || []).map(r => h("tr", null, h("td", { text: r[0] }), h("td", { text: r[1] }))))) : h("div", { class:"lp", text: b.text || "" })),
+    sign ? h("div", { class:"lsign", text: sign }) : null);
+  const dlg = h("div", { id:"letterDlg", onclick: e => { if (e.target === dlg) dlg.remove(); } }, body);
+  document.body.append(dlg);
+}
+// ---------- CEO: Hiring & exits page ----------
+function fillLifeForm(){
+  const once = (sel, opts) => { const el = $(sel); if (!el || el.options.length) return; el.replaceChildren(...opts.map(([v, t]) => h("option", { value:v, text:t }))); };
+  once("#lfDept", [["", "Pick a department"], ...DEPTS.map(d => [d, d])]);
+  once("#lfBase", (P.offices || []).map(o => [o.id, o.n]));
+  const mg = $("#lfMgr"); if (mg && !mg.contains(document.activeElement)) { const cur = mg.value; const leads = teamIds().filter(id => roleOf(id) !== "employee" || id === S.uid);
+    mg.replaceChildren(h("option", { value:"", text:"No manager (you approve)" }), ...leads.map(id => h("option", { value:id, text: id === S.uid ? "Me" : nameOf(id) }))); mg.value = cur; }
+  const dl = $("#lfPosList"); if (dl && !dl.children.length) dl.replaceChildren(...POS.map(x => h("option", { value: x.pos })));
+}
+async function inviteCandidate(){
+  const v = k => $(k).value.trim(), type = $("#lfType").value;
+  const body = { op:"cand_create", name: v("#lfName"), email: v("#lfEmail"), phone: v("#lfPhone"), role: v("#lfRole"), dept: $("#lfDept").value, company: $("#lfCo").value,
+    etype: type.startsWith("intern") ? "intern" : type, tenure: type === "intern6" ? 6 : 3, base: $("#lfBase").value, manager: $("#lfMgr").value, ctc: Number(v("#lfCtc")) || 0, join: v("#lfJoin"), appUrl: appUrl() };
+  if (!body.name || !body.email) { toast("Add the name and email."); return; }
+  const r = await srv(body, x => x.emailed ? "Invite emailed with their private link" : "Candidate added. Email isn't connected yet: copy the link and send it.", "invite");
+  if (r) { ["#lfName","#lfEmail","#lfPhone","#lfRole","#lfCtc","#lfJoin"].forEach(k => $(k).value = ""); $("#lfInviteMsg").replaceChildren(h("span", { text:"Private link: " }), h("a", { href: r.link, target:"_blank", rel:"noopener", text:"open" }), " · ", h("a", { href:"#", onclick: e => { e.preventDefault(); copyText(r.link); }, text:"copy" })); }
+}
+function copyText(t){ try { navigator.clipboard.writeText(t).then(() => toast("Copied"), () => prompt("Copy this:", t)); } catch { prompt("Copy this:", t); } }
+const candLink = c => `${appUrl()}join.html#${c.cid}.${c.token}`;
+async function refreshAccounts(force){ if (!acc || !canCirculate()) return; if (!force && Date.now() - S.accAt < 30000) return; S.accAt = Date.now(); S.accList = await acc.list(); renderLife(); renderInbox(); navBadges(); }
+function candCard(c){
+  const st = CSTAGE[c.stage] || [c.stage, ""], d = c.details || {}, docs = c.docs || {}, key = "c_" + c.cid;
+  const steps = [["Details", ["submitted","loi_sent","loi_accepted","joined"].includes(c.stage)], ["LOI", ["loi_accepted","joined"].includes(c.stage)], ["Joined", c.stage === "joined"]];
+  const card = h("div", { class:"lcard" },
+    h("div", { class:"lhead" }, h("div", null, h("div", { class:"lname", text: c.name }), h("div", { class:"lsub", text: [c.role, c.dept, c.company, c.etype === "intern" ? `Intern · ${c.tenure} months` : c.etype === "trainee" ? "Trainee" : "Employee", c.ctc ? inr(c.ctc) + "/month" : "", c.join ? "joins " + dLong(c.join) : ""].filter(Boolean).join(" · ") }),
+      h("div", { class:"lsub", text: [c.email, c.phone].filter(Boolean).join(" · ") })), h("div", { class:"stack", style:"gap:6px;justify-items:end" }, h("span", { class:"pill " + st[1], text: st[0] }), h("div", { class:"lsteps" }, ...steps.map(([t, done], i) => h("span", { class: done ? "done" : i === steps.findIndex(x => !x[1]) ? "now" : "", text: t }))))));
+  const linkRow = () => h("div", { class:"lrow" }, h("button", { class:"btn sm", type:"button", onclick: () => copyText(candLink(c)), text:"Copy their link" }), c.folder ? h("a", { class:"btn sm", href: c.folder, target:"_blank", rel:"noopener", text:"Drive folder" }) : null,
+    c.openedAt ? h("span", { class:"meta", text:`Opened ${dLabel(ymd(new Date(c.openedAt)))}` }) : h("span", { class:"meta", text:"Not opened yet" }));
+  if (["invited","returned"].includes(c.stage)) card.append(linkRow(), h("div", { class:"meta", text:`${Object.keys(docs).length} of 5 documents uploaded${c.portalNote && c.stage === "returned" ? ` · your note: ${c.portalNote}` : ""}` }));
+  if (["submitted","loi_sent","loi_accepted","declined"].includes(c.stage)) {
+    card.append(h("details", null, h("summary", { style:"cursor:pointer;font-weight:600;font-size:13px", text:"Their details and documents" }),
+      h("dl", { class:"kv", style:"margin-top:8px" }, ...[["Full name", d.fullName],["Date of birth", d.dob && dLong(d.dob)],["Mobile", d.mobile],["Personal email", d.email],["Address", [d.curAddr, d.curCity, d.curState, d.curPin].filter(Boolean).join(", ")],["PAN", d.pan],["Aadhaar", d.aadhaar4 && "XXXX XXXX " + d.aadhaar4],
+        ["Emergency contact", d.emName && `${d.emName} (${d.emRelation || ""}) ${d.emPhone || ""}`],["Education", [d.eduLevel, d.eduDegree, d.eduInst, d.eduYear].filter(Boolean).join(", ")],["Last job", d.firstJob ? "First job" : [d.prevRole, d.prevCo].filter(Boolean).join(" at ")]].filter(x => x[1]).flatMap(([k, v]) => [h("dt", { text:k }), h("dd", { text: String(v) })])),
+      h("div", { class:"lrow", style:"margin-top:8px" }, ...Object.entries(docs).map(([k, v]) => h("a", { class:"btn sm", href: v.url, target:"_blank", rel:"noopener", text: (HRDOCS.find(x => x[0] === k) || [k, k])[1] })))));
+  }
+  if (c.stage === "submitted" || c.stage === "invited" || c.stage === "returned") {
+    const role = h("input", { value: c.role || "", placeholder:"Position", style:"width:170px" }), ctc = h("input", { type:"number", value: c.ctc || "", placeholder:"Monthly CTC", style:"width:120px" }), join = h("input", { type:"date", value: c.join || "" }), by = h("input", { type:"date", value: addDays(S.today, 3), title:"Accept by" });
+    const saveTerms = async () => { try { await enqueue(() => db.doc(`cand/${c.cid}`).update({ role: role.value.trim(), ctc: Number(ctc.value) || 0, join: join.value })); return true; } catch { toast("Couldn't save the terms."); return false; } };
+    card.append(h("div", { class:"lrow" }, h("span", { class:"meta", text:"LOI terms:" }), role, ctc, join, h("span", { class:"meta", text:"accept by" }), by,
+      busyBtn(key, "Issue LOI", async () => { if (!(await saveTerms())) return; await srv({ op:"loi_issue", cid: c.cid, acceptBy: by.value }, "LOI issued, saved to Drive and emailed", key); }, "primary")));
+    if (c.stage === "submitted") { const note = h("input", { placeholder:"What needs fixing?", style:"flex:1;min-width:180px" });
+      card.append(h("div", { class:"lrow" }, note, h("button", { class:"btn sm", type:"button", onclick: async () => { if (!note.value.trim()) { toast("Add a note so they know what to fix."); return; } try { await enqueue(() => db.doc(`cand/${c.cid}`).update({ stage:"returned", portalNote: note.value.trim().slice(0, 300) })); toast("Sent back. They'll see your note on their link."); } catch { toast("Couldn't update."); } }, text:"Send back" }))); }
+  }
+  if (c.stage === "loi_sent") card.append(h("div", { class:"lrow" }, h("span", { class:"meta", text:`${c.loi.ref} sent ${dLabel(ymd(new Date(c.loi.issuedAt)))} · accept by ${dLong(c.loi.acceptBy)}` }), h("button", { class:"btn sm", type:"button", onclick: () => letterView(`LOI ${c.loi.ref}`, c.loi.blocks), text:"Read LOI" }), c.loi.url ? h("a", { class:"btn sm", href:c.loi.url, target:"_blank", rel:"noopener", text:"PDF in Drive" }) : null), linkRow());
+  if (c.stage === "loi_accepted") {
+    const accs = S.accList.filter(a => a.role === "pending" || a.email.toLowerCase() === String(c.email).toLowerCase());
+    const match = accs.find(a => a.email.toLowerCase() === String(c.email).toLowerCase());
+    const sel = h("select", null, h("option", { value:"", text: accs.length ? "Pick their account" : "They haven't signed up yet" }), ...accs.map(a => h("option", { value:a.id, selected: match && match.id === a.id, text:`${a.name || "—"} · ${a.email}${a.role !== "pending" ? " (" + a.role + ")" : ""}` })));
+    const code = h("input", { placeholder:"Employee code (auto)", style:"width:150px" });
+    card.append(h("div", { class:"meta", text:`LOI ${c.loi.ref} accepted ${dLong(ymd(new Date(c.loi.acceptedAt)))} as "${c.loi.signName}". On their joining day they sign up with ${c.email}; then confirm here.` }),
+      h("div", { class:"lrow" }, sel, code, busyBtn(key, "Confirm joining", async () => { if (!sel.value) { toast("Pick the account they signed up with."); return; } await srv({ op:"join", cid: c.cid, uid: sel.value, code: code.value.trim() }, r => `Joined as ${r.code}. ${r.letter ? r.letter.kind === "APT" ? "Appointment" : "Engagement" : ""} letter sent for acceptance.`, key); refreshAccounts(true); }, "primary"),
+        h("button", { class:"btn sm", type:"button", onclick: () => refreshAccounts(true), text:"Refresh sign-ups" }), c.loi.signedUrl ? h("a", { class:"btn sm", href:c.loi.signedUrl, target:"_blank", rel:"noopener", text:"Signed LOI" }) : null));
+  }
+  if (c.stage === "declined") card.append(h("div", { class:"meta", text: `Declined ${c.loi && c.loi.declinedAt ? dLong(ymd(new Date(c.loi.declinedAt))) : ""}${c.loi && c.loi.declineReason ? ": " + c.loi.declineReason : ""}` }));
+  if (c.stage === "joined") card.append(h("div", { class:"meta", text:`Joined ${c.joinedAt ? dLong(ymd(new Date(c.joinedAt))) : ""} as ${(person(c.uid) || {}).code || ""}` }));
+  if (["invited","returned","declined"].includes(c.stage)) card.append(h("div", { class:"lrow" }, h("button", { class:"btn sm bad", type:"button", onclick: async () => { if (!confirm(`Remove ${c.name}? Their private link stops working. Files already in Drive stay there.`)) return; try { await enqueue(() => db.doc(`cand/${c.cid}`).delete()); toast("Removed"); } catch { toast("Couldn't remove."); } }, text:"Remove" })));
+  return card;
+}
+function fnfSuggest(id, ex){
+  const pay = S.pay[id] || {}, gross = Number(pay.salary) || 0, u = person(id), basic = Number(u.basic) || Math.round(gross * .5);
+  const ym = ex.lwd.slice(0, 7), dim = daysIn(ym), d = +ex.lwd.slice(8);
+  const earn = [[`Salary for ${d} day${d === 1 ? "" : "s"} of ${ymLabel(ym)} (gross ÷ ${dim} × ${d})`, Math.round(gross * d / dim)]];
+  if (isConfirmed(id)) { const el = leaveLeft(id).el; if (el > 0) earn.push([`EL encashment: ${num1(el)} days × basic ÷ 30`, Math.round(el * basic / 30)]); }
+  const ready = tripsOf(id).filter(t => tripState(id, t).k === "ready").reduce((a, t) => a + claimTotal(t), 0); if (ready) earn.push(["Approved travel claims (ATR-HR-08)", ready]);
+  const yrs = joinOf(id) ? Math.floor(monthsBetween(joinOf(id), ex.lwd) / 12) : 0; if (yrs >= 5) earn.push([`Gratuity: 15/26 × basic × ${yrs} years`, Math.round(15 / 26 * basic * yrs)]);
+  const less = [], hv = ex.handover || {};
+  if (hv.h5 && hv.h5.amounts) { if (hv.h5.amounts.advances) less.push(["Advances (ATR-HR-09)", hv.h5.amounts.advances]); if (hv.h5.amounts.other) less.push(["Other recoveries", hv.h5.amounts.other]); if (hv.h5.amounts.assets) less.push(["Unreturned assets (ATR-HR-07)", hv.h5.amounts.assets]); }
+  if (hv.h4 && hv.h4.amounts && hv.h4.amounts.assets && !(hv.h5 && hv.h5.amounts && hv.h5.amounts.assets)) less.push(["Unreturned assets (ATR-HR-07)", hv.h4.amounts.assets]);
+  return { earn, less };
+}
+function fnfEditor(id, ex){
+  S.fnfDraft = S.fnfDraft || {}; const dr = S.fnfDraft[id] = S.fnfDraft[id] || fnfSuggest(id, ex);
+  const tot = l => l.reduce((a, x) => a + (Number(x[1]) || 0), 0);
+  const host = h("div", { class:"stack", style:"gap:8px" });
+  const draw = () => host.replaceChildren(...["earn", "less"].flatMap(k => [h("div", { class:"meta", style:"font-weight:700", text: k === "earn" ? "Earnings" : "Less: recoveries (notice shortfall = unserved days × gross ÷ 30)" }),
+      h("div", { class:"fnfgrid" }, ...dr[k].flatMap((ln, i) => [h("input", { value: ln[0], oninput: e => { ln[0] = e.target.value; } }), h("input", { type:"number", value: ln[1], oninput: e => { ln[1] = Number(e.target.value) || 0; total.textContent = `Net ${inr(tot(dr.earn) - tot(dr.less))}`; } }), h("button", { class:"btn sm", type:"button", "aria-label":"Remove line", onclick: () => { dr[k].splice(i, 1); draw(); }, text:"×" })])),
+      h("div", null, h("button", { class:"btn sm", type:"button", onclick: () => { dr[k].push(["", 0]); draw(); }, text:"+ Add line" }))]),
+    h("div", { class:"lrow" }, total, busyBtn("f_" + id, "Approve F&F statement", () => srv({ op:"fnf", uid:id, earn: dr.earn, less: dr.less }, r => `F&F approved: net ${inr(r.net)}. Statement emailed.`, "f_" + id), "primary"), h("button", { class:"btn sm", type:"button", onclick: () => { S.fnfDraft[id] = fnfSuggest(id, ex); renderLife(); }, text:"Recalculate" })));
+  const total = h("b", { text:`Net ${inr(tot(dr.earn) - tot(dr.less))}` });
+  draw(); return host;
+}
+function handoverList(id, ex, viewer){
+  const hv = ex.handover || {}, me = S.uid, mgr = mgrOf(id);
+  return h("div", null, ...HANDOVER.map(([k, label, who]) => { const x = hv[k];
+    const can = id !== me && ex.stage === "notice" && (canCirculate() || (who === "manager" && mgr === me) || (who === "finance" && S.finance));
+    const need = who === "manager" ? (mgr ? nameOf(mgr) : "Manager") : who === "finance" ? "Finance" : "CEO";
+    const act = !can ? null : x && x.ok ? null : h("div", { class:"row", style:"gap:6px" },
+      busyBtn(`s_${id}_${k}`, "Sign off", () => { let extra = {}; if (k === "h5" || k === "h4") { const a = prompt(k === "h5" ? "Advances to recover (₹, 0 if none):" : "Value of unreturned assets (₹, 0 if none):", "0"); if (a === null) return; extra = k === "h5" ? { advances: Number(a) || 0 } : { assets: Number(a) || 0 }; } return srv({ op:"exit_sign", uid:id, item:k, ...extra }, "Signed off", `s_${id}_${k}`); }, "good"),
+      h("button", { class:"btn sm", type:"button", onclick: () => { const n = prompt("What's missing? The employee sees this."); if (n) srv({ op:"exit_sign", uid:id, item:k, ok:false, note:n }, "Marked as not done", `s_${id}_${k}`); }, text:"Not done…" }));
+    return h("div", { class:"hitem" }, h("span", { class:"tick" + (x ? x.ok ? " ok" : " no" : ""), text: x ? x.ok ? "✓" : "!" : "·" }),
+      h("div", null, h("div", { style:"font-size:13px;font-weight:600", text: label }), h("div", { class:"meta", text: x ? `${x.ok ? "Signed off" : "Not accepted"} by ${x.byName || nameOf(x.by)} · ${dLabel(ymd(new Date(x.at)))}${x.note ? " · " + x.note : ""}${x.amounts ? " · " + Object.entries(x.amounts).filter(a => a[1]).map(([a, v]) => `${a} ${inr(v)}`).join(", ") : ""}` : `Signs off: ${need}` })), act); }),
+    h("div", { class:"hitem" }, h("span", { class:"tick" + (ex.ndc ? " ok" : ""), text: ex.ndc ? "✓" : "·" }), h("div", null, h("div", { style:"font-size:13px;font-weight:600", text:"No Dues Certificate" }), h("div", { class:"meta", text: ex.ndc ? `${ex.ndc.ref} issued automatically` : "Issued automatically when items 1–5 are signed off" })), ex.ndc && canCirculate() && ex.ndc.url ? h("a", { class:"btn sm", href: ex.ndc.url, target:"_blank", rel:"noopener", text:"PDF" }) : null));
+}
+function exitCard(id, ex){
+  const st = XSTAGE[ex.stage] || [ex.stage, ""], key = "x_" + id;
+  const card = h("div", { class:"lcard" }, h("div", { class:"lhead" }, h("div", null, h("div", { class:"lname", text: nameOf(id) }), h("div", { class:"lsub", text:[person(id).code, person(id).pos, ex.by === "company" ? "Separation by the company" : "Resigned " + dLong(ex.resignedOn)].filter(Boolean).join(" · ") }),
+      h("div", { class:"lsub", text:`Notice ${ex.notice} day${ex.notice === 1 ? "" : "s"} · last working day ${dLong(ex.lwd)}${ex.reason ? " · " + ex.reason : ""}` })), h("span", { class:"pill " + st[1], text: st[0] })));
+  if (ex.handoverNote) card.append(h("details", null, h("summary", { style:"cursor:pointer;font-size:13px;font-weight:600", text:`Handover note · ${dLabel(ymd(new Date(ex.handoverNote.at)))}${ex.handoverNote.late ? " (late)" : ""}` }), h("div", { class:"lp", style:"white-space:pre-line;font-size:13px;margin-top:6px", text: ex.handoverNote.text }), ex.handoverNote.link ? h("a", { href: ex.handoverNote.link, target:"_blank", rel:"noopener", text:"Open handover document" }) : null));
+  else if (ex.stage === "notice") card.append(h("div", { class:"meta", text:"Handover not submitted yet (due 5 working days before the last day)." }));
+  if (["notice", "nodues", "fnf", "closed"].includes(ex.stage)) card.append(handoverList(id, ex));
+  if (canCirculate() && ["notice","nodues"].includes(ex.stage)) { const d = h("input", { type:"date", value: ex.lwd }), n = h("input", { placeholder:"Note (e.g. notice waived)", style:"flex:1;min-width:160px" });
+    card.append(h("div", { class:"lrow" }, h("span", { class:"meta", text:"Change last day (only the CEO can shorten or waive notice):" }), d, n, busyBtn(key + "l", "Save", () => srv({ op:"exit_lwd", uid:id, lwd: d.value, note: n.value }, "Last working day updated and emailed", key + "l")),
+      h("button", { class:"btn sm bad", type:"button", onclick: () => { if (confirm("Withdraw this exit? The person stays employed.")) srv({ op:"exit_cancel", uid:id }, "Exit withdrawn", key + "c"); }, text:"Withdraw exit" }))); }
+  if (canCirculate() && ex.stage === "nodues") card.append(fnfEditor(id, ex));
+  if (canCirculate() && ex.stage === "fnf") { const d = h("input", { type:"date", value: S.today });
+    card.append(h("div", { class:"lrow" }, h("span", { class:"meta", text:`F&F ${ex.fnf.ref}: net ${inr(ex.fnf.net)} · due by ${dLong(ex.fnf.due)}` }), ex.fnf.url ? h("a", { class:"btn sm", href: ex.fnf.url, target:"_blank", rel:"noopener", text:"Statement PDF" }) : null, h("span", { class:"meta", text:"Paid on" }), d,
+      busyBtn(key + "p", "Mark paid · issue letters · close access", () => { if (confirm("This issues the relieving letter and experience certificate, emails them, and closes their app access.")) srv({ op:"fnf_paid", uid:id, paidOn: d.value }, "Relieving letter and experience certificate sent. Access closed.", key + "p"); }, "primary"))); }
+  if (ex.stage === "closed" && canCirculate()) card.append(h("div", { class:"lrow" }, ...[["Resignation ack", ex.ackUrl], ["No Dues", ex.ndc && ex.ndc.url], ["F&F", ex.fnf && ex.fnf.url], ["Relieving letter", ex.relieving && ex.relieving.url], ["Experience certificate", ex.experience && ex.experience.url]].filter(x => x[1]).map(([t, u]) => h("a", { class:"btn sm", href:u, target:"_blank", rel:"noopener", text:t }))));
+  return card;
+}
+function renderLife(){
+  const v = $("#v-life"); if (!v || v.hidden || !canCirculate()) return;
+  if (v.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  fillLifeForm(); refreshAccounts();
+  $("#lfDrivePill").className = "pill " + (S.drvAdmin && S.drvAdmin.url ? "c-approved" : "c-pending"); $("#lfDrivePill").textContent = S.drvAdmin && S.drvAdmin.url ? "Drive connected" : "Connect Drive in Policy settings";
+  const all = Object.values(S.cands).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), open = all.filter(c => !["joined","declined"].includes(c.stage));
+  const list = S.lfFilter === "all" ? all : open;
+  $("#lfCandFilter").replaceChildren(...[["open", `In progress ${open.length}`], ["all", `All ${all.length}`]].map(([k, t]) => h("button", { class:"chipbtn", type:"button", "aria-pressed": String(S.lfFilter === k), onclick: () => { S.lfFilter = k; renderLife(); }, text:t })));
+  $("#lfCands").replaceChildren(...(list.length ? list.map(candCard) : [h("div", { class:"empty", text: all.length ? "No candidates in progress." : "No candidates yet. Invite one above." })]));
+  // probation
+  const due = teamIds().map(id => ({ id, end: probEndOfP(id) })).filter(x => x.end && x.end <= addDays(S.today, 30) && !(S.exits[x.id] && S.exits[x.id].stage !== "withdrawn")).sort((a, b) => a.end.localeCompare(b.end));
+  $("#lfProb").replaceChildren(...(due.length ? due.map(({ id, end }) => { const key = "p_" + id, months = h("select", { style:"width:auto" }, ...[1, 2, 3].map(m => h("option", { value:m, text:`${m} month${m > 1 ? "s" : ""}` }))), why = h("input", { placeholder:"Reasons and goals (for an extension or an end)", style:"flex:1;min-width:200px" });
+      return h("div", { class:"lcard" }, h("div", { class:"lhead" }, h("div", null, h("div", { class:"lname", text: nameOf(id) }), h("div", { class:"lsub", text:`${person(id).pos || ""} · joined ${dLong(joinOf(id))} · probation ${end < S.today ? "ended" : "ends"} ${dLong(end)}${person(id).probExtended ? " (already extended once)" : ""}` })), h("span", { class:"pill " + (end < S.today ? "c-absent" : "c-pending"), text: end < S.today ? "Overdue" : "Due soon" })),
+        h("div", { class:"lrow" }, busyBtn(key, "Confirm · issue confirmation letter", () => srv({ op:"probation", uid:id, outcome:"confirm" }, "Confirmed. Confirmation letter sent.", key), "good"),
+          person(id).probExtended ? null : months, person(id).probExtended ? null : h("button", { class:"btn sm", type:"button", onclick: () => srv({ op:"probation", uid:id, outcome:"extend", months: Number(months.value), reason: why.value }, "Probation extended. Letter sent.", key), text:"Extend" }),
+          h("button", { class:"btn sm bad", type:"button", onclick: () => { if (confirm(`End ${nameOf(id)}'s employment after probation with 15 days' notice?`)) srv({ op:"probation", uid:id, outcome:"end", reason: why.value || "Probation not confirmed" }, "Separation started with 15 days' notice.", key); }, text:"End" }), why)); })
+    : [h("div", { class:"empty", text:"No probation reviews due in the next 30 days." })]));
+  // exits
+  const xs = Object.entries(S.exits).filter(([, x]) => x && x.stage).sort((a, b) => (["closed","withdrawn"].includes(a[1].stage) ? 1 : 0) - (["closed","withdrawn"].includes(b[1].stage) ? 1 : 0) || String(a[1].lwd).localeCompare(String(b[1].lwd)));
+  $("#lfExits").replaceChildren(...(xs.length ? xs.slice(0, 20).map(([id, x]) => exitCard(id, x)) : [h("div", { class:"empty", text:"No exits. When someone resigns in the app, it shows up here with the last working day already worked out." })]));
+  // current team letters
+  const staff = teamIds().filter(id => id !== S.uid && !person(id).exited && !(S.exits[id] && S.exits[id].stage !== "withdrawn"));
+  $("#lfStaff").replaceChildren(...(staff.length ? staff.map(id => { const ls = ((S.lifes[id] || {}).letters || []).filter(l => ["APT","INT","TRN"].includes(l.kind)), last = ls[ls.length - 1], key = "a_" + id, p = person(id), miss = [!p.pos && "position", !joinOf(id) && "joining date", !(S.pay[id] && S.pay[id].salary) && "salary"].filter(Boolean);
+      return h("div", { class:"item" }, h("div", { style:"flex:1;min-width:0" }, h("div", { style:"font-weight:600", text: nameOf(id) }), h("div", { class:"meta", text: last ? `${last.title} ${last.ref} · ${last.acceptedAt ? "accepted " + dLabel(ymd(new Date(last.acceptedAt))) : "waiting for them to accept"}` : miss.length ? `Set the ${miss.join(", ")} on Employee records first` : "No letter issued yet" })),
+        last && last.blocks ? h("button", { class:"btn sm", type:"button", onclick: () => letterView(`${last.title} ${last.ref}`, last.blocks, last.acceptedAt ? `Accepted electronically by ${last.signName} on ${new Date(last.acceptedAt).toLocaleString("en-IN")}` : "") , text:"Read" }) : null,
+        busyBtn(key, last ? "Issue again" : "Issue letter", () => { if (miss.length) { toast(`Set the ${miss.join(", ")} first.`); return; } return srv({ op:"letter_issue", uid:id, what:"APPOINT" }, "Letter issued and emailed for acceptance", key); })); })
+    : [h("div", { class:"empty", text:"No one on the team yet." })]));
+  const sep = $("#lfSep"); if (!sep.hidden && !sep.children.length) { const who = h("select", { style:"width:auto" }, h("option", { value:"", text:"Who?" }), ...teamIds().filter(id => id !== S.uid && !(S.exits[id] && !["withdrawn","closed"].includes(S.exits[id].stage))).map(id => h("option", { value:id, text: nameOf(id) }))),
+      why = h("input", { placeholder:"Reason", style:"flex:1;min-width:180px" }), nd = h("input", { type:"number", min:"0", placeholder:"Notice days (auto)", style:"width:150px" });
+    sep.append(who, why, nd, busyBtn("sep", "Start separation", () => { if (!who.value || !why.value.trim()) { toast("Pick the person and add a reason."); return; } return srv({ op:"exit_start", uid: who.value, reason: why.value.trim(), noticeDays: Number(nd.value) || 0 }, "Separation started. They've been emailed their last working day.", "sep"); }, "bad")); }
+}
+// ---------- employee: letters + resignation ----------
+function renderMyLetters(){
+  const pan = $("#myLettersPanel"); if (!pan) return;
+  const ls = (S.myLife && S.myLife.letters) || []; pan.hidden = !ls.length; if (!ls.length) return;
+  if (pan.contains(document.activeElement) && /INPUT/.test(document.activeElement.tagName)) return;
+  $("#myLetters").replaceChildren(...ls.map((l, i) => { const key = "la_" + i, need = l.needsAccept && !l.acceptedAt;
+    const ack = h("input", { type:"checkbox" }), name = h("input", { placeholder:`Type your full name to sign`, style:"min-width:200px" });
+    return h("div", { class:"lcard" }, h("div", { class:"lhead" }, h("div", null, h("div", { class:"lname", text: l.title }), h("div", { class:"lsub", text:`${l.ref} · issued ${dLong(ymd(new Date(l.issuedAt)))}${l.acceptedAt ? ` · accepted ${dLong(ymd(new Date(l.acceptedAt)))}` : ""}` })),
+        h("div", { class:"row" }, h("span", { class:"pill " + (need ? "c-pending" : "c-approved"), text: need ? "Waiting for you" : l.acceptedAt ? "Accepted" : "Issued" }), h("button", { class:"btn sm", type:"button", onclick: () => letterView(`${l.title} ${l.ref}`, l.blocks, l.acceptedAt ? `Accepted electronically by ${l.signName} on ${new Date(l.acceptedAt).toLocaleString("en-IN")} through Atraski People.` : ""), text:"Read" }))),
+      need ? h("div", { class:"stack", style:"gap:8px" }, h("label", { class:"chk" }, ack, "I have read this letter and the Atraski People Policies ATR-HR-01 to ATR-HR-12, and I accept the terms."),
+        h("div", { class:"lrow" }, name, busyBtn(key, "Accept and sign", () => { if (!ack.checked) { toast("Tick the box first."); return; } return srv({ op:"letter_accept", idx: i, signName: name.value, ackPolicies: true }, "Accepted. Your signed copy is in your email.", key); }, "primary"))) : null); }));
+}
+function renderMyExit(){
+  const host = $("#myExit"); if (!host || !S.uid) return;
+  if (host.contains(document.activeElement) && /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const ex = S.myExit, live = ex && !["withdrawn"].includes(ex.stage);
+  $("#myExitTitle").textContent = live ? (ex.stage === "closed" ? "Your exit is complete" : "Your exit") : "Resignation";
+  if (!live) {
+    const n = noticeFor(S.uid, S.today), lwd = addDays(S.today, n - 1);
+    const why = h("textarea", { rows:"2", placeholder:"Reason (shared with your manager and the CEO)" }), ok = h("input", { type:"checkbox" });
+    host.replaceChildren(h("p", { class:"muted", style:"margin:0;font-size:13px", text:`If you resign today, your notice is ${n} day${n === 1 ? "" : "s"} and your last working day would be ${dLong(lwd)} (ATR-HR-10). Paid leave isn't taken during notice.` }),
+      h("details", null, h("summary", { style:"cursor:pointer;font-weight:600;font-size:13px", text:"Resign" }), h("div", { class:"stack", style:"gap:8px;margin-top:8px" }, why, h("label", { class:"chk" }, ok, `I want to resign. I'll serve ${n} days' notice and complete my handover.`),
+        h("div", null, busyBtn("resign", "Submit resignation", () => { if (!ok.checked) { toast("Tick the box to confirm."); return; } return srv({ op:"resign", reason: why.value }, r => `Resignation submitted. Last working day ${dLong(r.lwd)}. Check your email.`, "resign"); }, "bad")))));
+    return;
+  }
+  const note = h("textarea", { rows:"4", placeholder:"Every task with its status and deadline, client contacts, and where the files and logins are" }), link = h("input", { placeholder:"Link to your handover document in Drive (optional)" });
+  host.replaceChildren(h("dl", { class:"kv" }, ...[["Status", (XSTAGE[ex.stage] || [ex.stage])[0]], ["Notice", `${ex.notice} day${ex.notice === 1 ? "" : "s"}`], ["Last working day", dLong(ex.lwd)], ex.fnf ? ["F&F", `Net ${inr(ex.fnf.net)} · due by ${dLong(ex.fnf.due)}`] : null].filter(Boolean).flatMap(([k, v]) => [h("dt", { text:k }), h("dd", { text:v })])),
+    ex.stage === "notice" && !ex.handoverNote ? h("div", { class:"stack", style:"gap:8px" }, h("b", { style:"font-size:13px", text:"Submit your handover at least 5 working days before your last day" }), note, link, h("div", null, busyBtn("hand", "Submit handover", () => srv({ op:"handover", note: note.value, link: link.value }, r => r.late ? "Handover submitted (it's later than 5 working days before your last day)." : "Handover submitted", "hand"), "primary"))) : null,
+    ex.handoverNote ? h("div", { class:"meta", text:`Handover submitted ${dLong(ymd(new Date(ex.handoverNote.at)))}` }) : null,
+    handoverList(S.uid, ex),
+    ex.stage === "closed" ? h("div", { class:"banner", style:"background:var(--wfh-bg)", text:"Your relieving letter and experience certificate were emailed to you. Thank you for your time at Atraski." }) : null);
+}
+// ---------- Drive panel ----------
+async function loadDriveAdmin(){ if (!drv || !S.owner) return; try { S.drvAdmin = await drv.admin(); } catch { S.drvAdmin = null; } renderDrivePanel(); renderLife(); }
+function renderDrivePanel(){
+  const pan = $("#drivePanel"); if (!pan) return; pan.hidden = !S.owner; if (!S.owner) return;
+  const a = S.drvAdmin || {}, on = !!a.url;
+  $("#drvStatus").className = "pill " + (on ? "c-approved" : "c-pending"); $("#drvStatus").textContent = on ? "Connected" : "Not connected";
+  if (document.activeElement !== $("#drvUrl")) $("#drvUrl").value = a.url || "";
+  $("#drvOpen").href = a.root ? `https://drive.google.com/drive/folders/${a.root}` : "#";
+  const l = S.drvLog; $("#drvLog").textContent = l ? `Last backup ${new Date(l.at).toLocaleString("en-IN")}: ${l.ok ? `${l.files} files saved` : "had problems: " + (l.errors || []).join("; ")}` : on ? "No backup yet. Press Back up now, or wait for tonight's run." : "";
+  for (const k of ["autoApprove", "autoCycles", "driveNightly"]) $("#" + k).checked = S.auto[k] !== false;
+}
+const driveScript = () => DRIVE_GS.replace("__SECRET__", (S.drvAdmin || {}).secret || "").replace("__ROOT__", (S.drvAdmin || {}).root || "");
+async function setAuto(k, v){ try { await enqueue(() => db.doc("config/automation").update({ [k]: v })); S.auto[k] = v; toast(v ? "Turned on" : "Turned off"); } catch { toast("Couldn't change it."); renderDrivePanel(); } }
+// ---------- Drive: save the pay run and the attendance summary when a pay run is locked ----------
+function payTable(ym){
+  const head = ["Employee Code","Employee Name","Designation","Department","Employee Type","Working Days","Days Worked","Leaves","LOP Days","WFH Days","Gross Monthly (₹)","Per-Day Rate (₹)","Gross Earned (₹)","Recovery (₹)","Net Salary (₹)","Travel Claims (₹)","Reimbursement (₹)","Incentive (₹)","Total Payout (₹)","Cycle","Status","Paid On","Remarks"];
+  return [head, ...payIds().map(payRow).filter(r => r.salary).map(r => [r.code, r.name, r.pos, r.dept, ETYPE[r.etype], r.working, Number(num1(r.worked || r.paidDays)), Number(num1(r.leave || 0)), Number(num1(r.lop)), r.wfh || 0, r.salary, r.perDay ? Number(r.perDay.toFixed(2)) : "", r.gross, r.recovery, r.gross - r.recovery, r.travel, r.reimb, r.incentive, r.total, `By ${r.cycle}th`, r.status, r.paidOn, [r.recoveryNote, r.remarks].filter(Boolean).join("; ")])];
+}
+function attTable(ym){
+  const head = ["Employee Code","Name","Working Days","Days Worked","Paid Leave","LOP","WFH","Unapproved WFH","Late Marks","Short Days (½)","Short Days from Leave","Missed Punches","Short Leaves","Hours","Flags"];
+  return [head, ...teamIds().map(id => { const s = summarize(ym, S.prMonths[id], id); return [person(id).code || "", nameOf(id), s.working, Number(num1(s.worked)), Number(num1(s.leave)), Number(num1(s.lwp)), s.wfh, s.uwfh, s.late, s.debit || 0, (s.debitCl || 0) + (s.debitEl || 0), s.missed, s.short, Number((s.ms / 36e5).toFixed(2)), s.flags.map(f => f.t).join("; ")]; })];
+}
+async function payrunToDrive(ym, quiet){
+  if (!drv || !S.owner || !(S.drvAdmin && S.drvAdmin.url)) { if (!quiet) toast("Connect Google Drive first (Policy settings)."); return; }
+  try { await drv.call({ op:"push", path:["Payroll", ym], name:`Pay run ${ym}`, tabs:[{ name:"Pay run", rows: payTable(ym) }] });
+    await drv.call({ op:"push", path:["Attendance", ym], name:`Attendance summary ${ym}`, tabs:[{ name:"Summary", rows: attTable(ym) }] });
+    toast(`Pay run and attendance for ${ymLabel(ym)} saved to Drive`); } catch (e) { toast("Drive: " + (e.message || e)); }
 }
 async function savePerson(id, patch){
   const cur = { ...person(id), ...patch };
@@ -2395,7 +2752,7 @@ function renderPayrun(){
   renderPayCheck();
   $("#prSwitch").textContent = S.payOn ? "Payslips: On" : "Payslips: Off"; $("#prSwitch").setAttribute("aria-pressed", String(!!S.payOn)); $("#prSwitch").className = "btn sm" + (S.payOn ? " good" : "");
   $("#prSwitch").title = S.payOn ? "Employees can see their locked payslips. Click to hide them." : "Employees can't see payslips. Click to let them see locked payslips.";
-  const rows = teamIds().filter(id => (S.pay[id] && S.pay[id].salary) || !locked).map(payRow);
+  const rows = payIds().filter(id => (S.pay[id] && S.pay[id].salary) || !locked).map(payRow);
   const sum = k => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
   const c10 = rows.filter(r => r.cycle === "10").reduce((a, r) => a + r.total, 0), c15 = rows.filter(r => r.cycle === "15").reduce((a, r) => a + r.total, 0);
   $("#prStats").replaceChildren(...[[rows.filter(r => r.salary).length, "People paid"],[inr(sum("salary")), "Monthly salaries"],[inr(sum("salary") - sum("gross")), "LOP deductions"],[inr(sum("travel") + sum("reimb")), "Reimbursements"],
@@ -2433,7 +2790,7 @@ async function setPayStatus(r, status, paidOn){
 let unsubPc = null; S.pc = null;
 const PC_KEYS = ["salary","basis","working","lop","paidDays","gross","recovery","travel","reimb","incentive","total","cycle"];
 function pcSig(rows){ const str = JSON.stringify(Object.keys(rows).sort().map(id => [id, ...PC_KEYS.map(k => rows[id][k] ?? "")])); let h1 = 5381; for (let i = 0; i < str.length; i++) h1 = ((h1 << 5) + h1 + str.charCodeAt(i)) | 0; return String(h1 >>> 0); }
-function pcRowsNow(){ const out = {}; for (const r of teamIds().map(payRow).filter(r => r.salary)) { const { checks, locked, tripIds, ...rest } = r; out[r.id] = { ...Object.fromEntries(PC_KEYS.map(k => [k, rest[k]])), name: r.name, code: r.code, pos: r.pos, recoveryNote: r.recoveryNote, flags: checks.map(c => c.t) }; } return out; }
+function pcRowsNow(){ const out = {}; for (const r of payIds().map(payRow).filter(r => r.salary)) { const { checks, locked, tripIds, ...rest } = r; out[r.id] = { ...Object.fromEntries(PC_KEYS.map(k => [k, rest[k]])), name: r.name, code: r.code, pos: r.pos, recoveryNote: r.recoveryNote, flags: checks.map(c => c.t) }; } return out; }
 function pcState(){
   const pc = S.pc; if (!pc || !pc.sentAt) return { k:"none", label:"Not sent to finance", pill:"" };
   const f = pc.fin || {};
@@ -2517,7 +2874,7 @@ async function lockPayrun(){
     try { await enqueue(() => ref.update({ status:"draft" })); toast(S.payOn ? "Pay run reopened. Employees still see the last locked payslip." : "Pay run reopened."); } catch { toast("Couldn't reopen."); }
     return;
   }
-  const rows = teamIds().map(payRow).filter(r => r.salary);
+  const rows = payIds().map(payRow).filter(r => r.salary);
   if (!rows.length) { toast("Set at least one salary first."); return; }
   const blocking = rows.filter(r => r.checks.some(c => c.red && !/Month not over/.test(c.t)));
   const pst = pcState();
@@ -2537,6 +2894,7 @@ async function lockPayrun(){
       }
     });
     toast(S.payOn ? `Locked. ${rows.length} payslips are visible to employees.` : `Locked. ${rows.length} payslips saved. Employees will see them when you switch payslips on.`);
+    if (S.drvAdmin && S.drvAdmin.url) setTimeout(() => payrunToDrive(ym, true), 1200);
   } catch { toast("Couldn't lock the pay run. Try again."); }
 }
 async function togglePayslips(){
@@ -2550,7 +2908,7 @@ async function downloadPayCsv(){
   if (!downloads) { toast("Downloads aren't available in this view."); return; }
   const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const head = ["Employee Code","Employee Name","Designation","Department","Employee Type","Working Days in Month","Days Worked","Leaves Taken","LWP (Loss of Pay Days)","WFH Days","Gross Monthly CTC (₹)","Per-Day Rate (₹)","Gross Earned (₹)","Recovery (₹)","Net Salary (₹)","Pay by 10th (₹)","Pay by 15th (₹)","Reimbursement (₹)","Commission / Incentive (₹)","Total Payout (₹)","Payment Status","Payment Date","Remarks"];
-  const rows = teamIds().map(payRow).filter(r => r.salary);
+  const rows = payIds().map(payRow).filter(r => r.salary);
   const lines = [head.map(esc).join(",")].concat(rows.map(r => { const net = r.gross - r.recovery; return [r.code, r.name, r.pos, r.dept, ETYPE[r.etype], r.working, num1(r.worked || r.paidDays), num1(r.leave || 0), num1(r.lop), r.wfh || 0, r.salary, r.perDay ? r.perDay.toFixed(2) : "", r.gross, r.recovery, net, r.cycle === "10" ? r.total : "", r.cycle === "15" ? r.total : "", r.travel + r.reimb, r.incentive, r.total, r.status, r.paidOn, [r.recoveryNote, r.remarks].filter(Boolean).join("; ")].map(esc).join(","); }));
   try { await downloads.save({ filename: `atraski-payrun-${S.prYM}.csv`, data: lines.join("\n") }); toast("Pay run saved"); }
   catch (e) { if (e && e.code !== "declined") toast("Couldn't save the file."); }
@@ -2920,16 +3278,40 @@ function myTodos(){
   for (const tr of tripsOf(S.uid)) { const st = tripState(S.uid, tr); if (st.k === "claim") t.push({ t:`File your claim for ${tr.to} by ${dLabel(addDays(tr.end || tr.start, P.teClaimDays))}`, href:"#travel" }); if (st.k === "finq") t.push({ t:`Finance has a question on your ${tr.to} claim: ${tdec(S.uid, tr.tid).fin.note || "see the claim"}`, href:"#travel", red:true }); }
   if (isOpen(S.pfPeriod) && sheetOf(S.uid) && !(S.pfSelf && S.pfSelf.submittedAt)) t.push({ t:`KRA/KPI self-assessment for ${qLabel(S.pfPeriod)} is open · due ${dLong(cycleOf(S.pfPeriod).due || qRange(S.pfPeriod).to)}`, href:"#perf", red:true });
   if (S.pfOut && !(S.pfSelf && S.pfSelf.ackAt)) t.push({ t:"Your performance review is ready to discuss", href:"#perf" });
+  for (const l of ((S.myLife && S.myLife.letters) || [])) if (l.needsAccept && !l.acceptedAt) t.unshift({ t:`Read and accept your ${l.title.toLowerCase()}`, href:"#onboard", red:true });
+  if (S.myExit && S.myExit.stage === "notice" && !S.myExit.handoverNote) t.unshift({ t:`Submit your handover (last working day ${dLong(S.myExit.lwd)})`, href:"#onboard", red:true });
+  { const me = S.cur ? summarize(S.curYM, S.cur, S.uid) : null; if (me && me.late >= Number(P.lateWarn)) t.push({ t:`Written reminder: ${me.late} late marks this month (ATR-HR-02). Punch in by ${t12(P.flexTo)}.`, href:"#me", info:true }); }
   const ob = myOnb(), obs = ob ? ob.status || "draft" : null;
-  if (obs !== "submitted" && obs !== "verified") t.unshift({ t: obs === "returned" ? `HR sent your onboarding details back${ob.hr && ob.hr.note ? ": " + ob.hr.note : ""}` : "Complete your onboarding details for HR", href:"#onboard", red:true });
+  if (obs !== "submitted" && obs !== "verified") t.unshift({ t: obs === "returned" ? `HR sent your onboarding details back${ob.hr && ob.hr.note ? ": " + ob.hr.note : ""}` : "Complete your onboarding details", href:"#onboard", red:true });
   if (S.owner && S.pc && S.pc.sentAt && !(S.prDoc && S.prDoc.status === "locked")) { const pst = pcState(); if (pst.k === "query") t.push({ t:`Finance has queries on the ${ymLabel(S.prYM)} pay run`, href:"#payrun", red:true }); if (pst.k === "approved") t.push({ t:`Finance approved the ${ymLabel(S.prYM)} pay run. Lock it to release payslips.`, href:"#payrun" }); }
   const pend = reqList(S.root, S.dec).filter(r => r.status === "pending").length;
   if (pend) t.push({ t:`${pend} of your request${pend === 1 ? " is" : "s are"} waiting for approval`, href:"#me", info:true });
   return t;
 }
+function lifeItems(){
+  const items = [], now = Date.now();
+  const sign = (id, k, label, extra) => ({ cat:"life", id, at: (S.exits[id].handoverNote || {}).at || S.exits[id].at || now, title:`Exit handover · ${label}`, sub:`Last working day ${dLong(S.exits[id].lwd)}`, acts: extra });
+  for (const [id, ex] of Object.entries(S.exits)) { if (!ex || ex.stage !== "notice" || id === S.uid) continue; const hv = ex.handover || {};
+    const mine = HANDOVER.filter(([k, , who]) => !(hv[k] && hv[k].ok) && ((who === "manager" && mgrOf(id) === S.uid && ex.handoverNote) || (who === "finance" && S.finance) || (who === "ceo" && canCirculate())));
+    for (const [k, label] of mine) items.push(sign(id, k, label.split(":")[0].split("(")[0].trim(), [["Sign off", () => { let extra = {}; if (k === "h5" || k === "h4") { const a = prompt(k === "h5" ? "Advances to recover (₹, 0 if none):" : "Value of unreturned assets (₹, 0 if none):", "0"); if (a === null) return; extra = k === "h5" ? { advances: Number(a) || 0 } : { assets: Number(a) || 0 }; } srv({ op:"exit_sign", uid:id, item:k, ...extra }, "Signed off"); }, "good"],
+      ["Not done…", () => { const n = prompt("What's missing? The employee sees this."); if (n) srv({ op:"exit_sign", uid:id, item:k, ok:false, note:n }, "Marked as not done"); }, ""]])); }
+  if (!canCirculate()) return items;
+  for (const c of Object.values(S.cands)) {
+    if (c.stage === "submitted") items.push({ cat:"life", id: S.uid, at: c.submittedAt || now, title:`Candidate ready: ${c.name}`, sub:`${c.role} · details and documents are in. Issue the Letter of Intent.`, acts:[["Open", () => { location.hash = "#life"; }, "good"]] });
+    if (c.stage === "loi_accepted") { const m = S.accList.find(a => a.email.toLowerCase() === String(c.email).toLowerCase());
+      items.push({ cat:"life", id: S.uid, at: c.loi && c.loi.acceptedAt || now, title: m ? `${c.name} has signed up · confirm joining` : `${c.name} accepted the LOI`, sub: m ? "One click makes them an employee and sends the appointment letter." : `Joining ${c.join ? dLong(c.join) : ""}. They sign up with ${c.email} on the day.`, acts:[["Open", () => { location.hash = "#life"; }, "good"]] }); }
+  }
+  const candMails = new Set(Object.values(S.cands).map(c => String(c.email).toLowerCase()));
+  for (const a of S.accList.filter(a => a.role === "pending" && !candMails.has(a.email.toLowerCase()) && !(person(a.id).exited)))
+    items.push({ cat:"life", id: a.id, at: a.created ? Date.parse(a.created) : now, title:`New sign-up: ${a.name || a.email}`, sub:`${a.email} is waiting for access. Give access, or invite them as a candidate first.`, acts:[["Give access", () => acc && acc.open(), "good"]] });
+  for (const id of teamIds()) { const end = probEndOfP(id); if (end && end <= addDays(S.today, 30) && !(S.exits[id] && S.exits[id].stage !== "withdrawn")) items.push({ cat:"life", id, at: Date.parse(end), title:`Probation review ${end < S.today ? "overdue" : "due " + dLabel(end)}`, sub:"Confirm, extend once, or end (ATR-HR-01).", acts:[["Open", () => { location.hash = "#life"; }, "good"]] }); }
+  for (const [id, ex] of Object.entries(S.exits)) { if (ex && ex.stage === "nodues") items.push({ cat:"life", id, at: (ex.ndc || {}).at || now, title:"Approve the F&F statement", sub:`No Dues issued · last working day ${dLong(ex.lwd)}`, acts:[["Open", () => { location.hash = "#life"; }, "good"]] });
+    if (ex && ex.stage === "fnf") items.push({ cat:"life", id, at: (ex.fnf || {}).at || now, title:"Pay the F&F and close the exit", sub:`Net ${inr(ex.fnf.net)} due by ${dLong(ex.fnf.due)}`, acts:[["Open", () => { location.hash = "#life"; }, "good"]] }); }
+  return items;
+}
 function inboxItems(){
   if (!canSeeTeam() && !S.finance) return [];
-  const items = [], role = effRole();
+  const items = [...lifeItems()], role = effRole();
   if (S.finance && !S.owner) for (const [ym, pc] of Object.entries(S.pcAll || {})) if (pc.sentAt && !(pc.fin && pc.fin.s === "approved"))
     items.push({ cat:"pay", id: pc.sentBy, at: pc.sentAt, title:`Pay run · ${ymLabel(ym)} · check before payment`, sub:`${Object.keys(pc.rows || {}).length} people · ${inr(Object.values(pc.rows || {}).reduce((a, r) => a + (Number(r.total) || 0), 0))} total payout${pc.fin && pc.fin.s === "query" ? " · your queries are with the CEO" : ""}`, acts:[["Open pay run check", () => { S.prYM = ym; S.pc = pc; location.hash = "#payrun"; renderPayCheck(); }, "good"]] });
   if (!canSeeTeam()) {
@@ -3041,12 +3423,12 @@ function renderInbox(){
   const items = inboxItems(), todos = myTodos();
   $("#ibTitle").textContent = team ? "Inbox" : "My to-dos";
   $("#ibEyebrow").textContent = !team ? "Things to finish" : !canSeeTeam() ? "Pay run and claims waiting for finance" : effRole() === "admin" ? "Everything waiting on you · everyone" : "Everything waiting on you · your team";
-  const cats = [["all", "All", items.length], ["leave", "Leave & attendance", items.filter(i => i.cat === "leave").length], ["travel", "Travel & claims", items.filter(i => i.cat === "travel").length], ["perf", "Performance", items.filter(i => i.cat === "perf").length], ...(canCirculate() ? [["onboard", "Onboarding", items.filter(i => i.cat === "onboard").length]] : []), ...(S.finance && !S.owner ? [["pay", "Pay run", items.filter(i => i.cat === "pay").length]] : []), ["mine", "My to-dos", todos.length]];
+  const cats = [["all", "All", items.length], ["leave", "Leave & attendance", items.filter(i => i.cat === "leave").length], ["travel", "Travel & claims", items.filter(i => i.cat === "travel").length], ["perf", "Performance", items.filter(i => i.cat === "perf").length], ...(canCirculate() ? [["onboard", "Onboarding", items.filter(i => i.cat === "onboard").length]] : []), ...(S.finance && !S.owner ? [["pay", "Pay run", items.filter(i => i.cat === "pay").length]] : []), ...(items.some(i => i.cat === "life") ? [["life", "Hiring & exits", items.filter(i => i.cat === "life").length]] : []), ["mine", "My to-dos", todos.length]];
   $("#ibFilters").replaceChildren(...cats.filter(c => (team || c[0] === "mine") && (canSeeTeam() || !["leave","perf"].includes(c[0]))).map(([k, l, n]) => h("button", { class:"chipbtn", type:"button", "aria-pressed": String((team ? S.ibFilter : "mine") === k), onclick: () => { S.ibFilter = k; renderInbox(); }, text:`${l} ${n}` })));
   const f = team ? S.ibFilter : "mine";
   if (f === "mine") { $("#ibList").replaceChildren(...(todos.length ? todos.map(x => h("a", { href:x.href, class:"todo" + (x.red ? " red" : ""), text:x.t })) : [h("div", { class:"empty", text:"You're all caught up." })])); return; }
   const list = items.filter(i => f === "all" || i.cat === f);
-  const CAT = { leave:["Leave & attendance", "c-leave"], travel:["Travel", "c-wfh"], perf:["Performance", "c-office"], onboard:["Onboarding", "c-pending"], pay:["Pay run", "c-office"] };
+  const CAT = { leave:["Leave & attendance", "c-leave"], travel:["Travel", "c-wfh"], perf:["Performance", "c-office"], onboard:["Onboarding", "c-pending"], pay:["Pay run", "c-office"], life:["Hiring & exits", "c-office"] };
   $("#ibList").replaceChildren(...(list.length ? list.map(i => h("div", { class:"item", style:"align-items:flex-start" },
     h("div", { class:"who", style:"min-width:0;flex:1" }, avatar(i.id), h("div", { style:"min-width:0" },
       h("div", { class:"row", style:"gap:6px" }, h("span", { class:"pill " + CAT[i.cat][1], text: CAT[i.cat][0] }), h("b", { text: nameOf(i.id) })),
@@ -3117,7 +3499,7 @@ const ICONS = {
 };
 function svgIcon(k){ const t = document.createElementNS("http://www.w3.org/2000/svg", "svg"); t.setAttribute("viewBox", "0 0 24 24"); t.setAttribute("fill", "none"); t.setAttribute("stroke", "currentColor"); t.setAttribute("stroke-width", "1.8"); t.setAttribute("stroke-linecap", "round"); t.setAttribute("stroke-linejoin", "round"); t.setAttribute("aria-hidden", "true"); t.innerHTML = ICONS[k] || ""; return t; }
 document.querySelectorAll("[data-icon]").forEach(el => el.prepend(svgIcon(el.dataset.icon)));
-const TITLES = { home:"Home", inbox:"Inbox", me:"Attendance & leave", travel:"Travel & claims", perf:"Performance", payslips:"Payslips", onboard:"My onboarding", team:"Team", directory:"People directory", docs:"Policies & documents", people:"Employee records", org:"Structure", payrun:"Pay run", policy:"Policy settings" };
+const TITLES = { home:"Home", inbox:"Inbox", me:"Attendance & leave", travel:"Travel & claims", perf:"Performance", payslips:"Payslips", onboard:"My onboarding & letters", team:"Team", directory:"People directory", docs:"Policies & documents", life:"Hiring & exits", people:"Employee records", org:"Structure", payrun:"Pay run", policy:"Policy settings" };
 function setShell(r){
   const t = r === "team" ? (effRole() === "admin" ? "Overview" : "My team") : r === "inbox" && !canSeeTeam() && !S.finance ? "My to-dos" : TITLES[r] || "";
   $("#tbTitle").textContent = t; document.title = `${t} · Atraski People`;
@@ -3143,24 +3525,26 @@ $("#quickPunch").addEventListener("click", () => punch());
 // ---------- routing ----------
 function route(){
   const role = effRole();
-  const allowed = role === "admin" ? ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs","people","org", ...(S.owner && !S.viewAs.role ? ["payrun"] : []), "policy"] : role === "manager" ? ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs"] : ["home","inbox","me","travel","perf","payslips","onboard","directory","docs"];
+  const allowed = role === "admin" ? ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs",...(canCirculate() && !S.viewAs.role ? ["life"] : []), "people","org", ...(S.owner && !S.viewAs.role ? ["payrun"] : []), "policy"] : role === "manager" ? ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs"] : ["home","inbox","me","travel","perf","payslips","onboard","directory","docs"];
   if (!S.payOn && !S.owner) { const i = allowed.indexOf("payslips"); if (i >= 0) allowed.splice(i, 1); }
   if (S.finance && !S.owner && !S.viewAs.role && !allowed.includes("payrun")) allowed.splice(allowed.indexOf("directory"), 0, "payrun");
   let r = (location.hash || "").slice(1);
   if (!allowed.includes(r)) r = allowed[0];
   document.querySelectorAll(".side nav a").forEach(a => { a.hidden = !allowed.includes(a.dataset.route); a.setAttribute("aria-current", a.dataset.route === r ? "page" : "false"); });
-  for (const v of ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs","people","org","payrun","policy"]) $("#v-" + v).hidden = v !== r;
+  for (const v of ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs","life","people","org","payrun","policy"]) $("#v-" + v).hidden = v !== r;
   document.querySelectorAll(".side .ng").forEach(g => g.hidden = ![...g.querySelectorAll("a")].some(a => !a.hidden));
   if (r === "home") renderHome(); if (r === "inbox") renderInbox(); if (r === "payslips") renderPayslips(); if (r === "directory") renderDirectory(); if (r === "docs") renderDocs();
   window.scrollTo({ top: 0 }); setShell(r); renderTopbar();
   if (r === "team") loadReport();
   if (r === "travel") renderTravel();
   if (r === "perf") renderPerf();
-  if (r === "onboard") { S.obForm = false; renderOnboard(); }
+  if (r === "onboard") { S.obForm = false; renderOnboard(); renderMyLetters(); renderMyExit(); }
+  if (r === "life") { refreshAccounts(true); renderLife(); }
+  if (r === "policy") { loadDriveAdmin(); }
   if (r === "payrun") { subPayrun(); loadPrMonths(); renderPayrun(); renderPayCheck(); }
 }
 function renderAll(){ renderRole(); renderBanners(); renderMe(); renderMonth(); renderReqs(); renderRules(); renderTeam(); renderPeople(); renderOrg(); renderPayslips();
-  if (!$("#v-travel").hidden && !$("#v-travel").contains(document.activeElement)) renderTravel(); renderPayrun(); renderPerf(); renderHome(); renderInbox(); renderPayslipsPage(); renderDirectory(); renderDocs(); renderHrDocs(); renderMyDocs(); renderOnboard(); navBadges(); }
+  if (!$("#v-travel").hidden && !$("#v-travel").contains(document.activeElement)) renderTravel(); renderPayrun(); renderPerf(); renderHome(); renderInbox(); renderPayslipsPage(); renderDirectory(); renderDocs(); renderHrDocs(); renderMyDocs(); renderOnboard(); renderMyLetters(); renderMyExit(); renderLife(); renderDrivePanel(); navBadges(); }
 
 // ---------- subscriptions ----------
 let unsubCur = null;
@@ -3179,7 +3563,7 @@ async function init(){
   renderLegend(); fillPolicy(true); route(); renderAll();
   const C = window.claude;
   if (!C || !C.use) { S.ready = true; renderAll(); return; }
-  [db, user, downloads, assets] = await Promise.all([C.use("db"), C.use("user"), C.use("downloads"), C.use("assets")]);
+  [db, user, downloads, assets, drv, acc] = await Promise.all([C.use("db"), C.use("user"), C.use("downloads"), C.use("assets"), C.use("drive"), C.use("access")]);
   if (user) { S.me = await user.me(); S.uid = S.me.id; S.admin = await user.canEdit(); S.owner = await user.isOwner(); S.finance = (await user.can("finance")) === true; S.hr = (await user.can("hr")) === true; }
   S.ready = true;
   if (!db) { renderAll(); return; }
@@ -3221,6 +3605,14 @@ async function init(){
   }
   if (S.admin || S.finance) db.collection("finance").onSnapshot(qs => { S.finDec = {}; for (const d of qs.docs) S.finDec[d.id] = d.data(); renderAll(); }, () => {});
   if (S.owner || S.finance) subPayCheck();
+  db.doc("config/automation").onSnapshot(s => { S.auto = { autoApprove:true, autoCycles:true, driveNightly:true, ...(s.data() || {}) }; renderDrivePanel(); }, () => {});
+  if (S.uid) { db.doc(`life/${S.uid}`).onSnapshot(s => { S.myLife = s.data() || null; renderMyLetters(); navBadges(); }, () => {});
+    db.doc(`exit/${S.uid}`).onSnapshot(s => { S.myExit = s.data() || null; renderMyExit(); navBadges(); }, () => {}); }
+  if (S.admin || S.finance) db.collection("exit").onSnapshot(qs => { S.exits = {}; for (const d of qs.docs) S.exits[d.id] = d.data(); renderLife(); renderInbox(); navBadges(); if (!$("#v-payrun").hidden) renderPayrun(); }, () => {});
+  if (canCirculate()) { db.collection("cand").onSnapshot(qs => { S.cands = {}; for (const d of qs.docs) S.cands[d.id] = d.data(); renderLife(); renderInbox(); navBadges(); }, () => {});
+    db.collection("life").onSnapshot(qs => { S.lifes = {}; for (const d of qs.docs) S.lifes[d.id] = d.data(); renderLife(); }, () => {});
+    refreshAccounts(true); setInterval(() => refreshAccounts(), 60000); }
+  if (S.owner) { db.doc("drivelog/status").onSnapshot(s => { S.drvLog = s.data() || null; renderDrivePanel(); }, () => {}); loadDriveAdmin(); }
   if (S.finance && !S.admin) db.collection("decisions").onSnapshot(qs => { S.teamDec = {}; for (const d of qs.docs) S.teamDec[d.id] = d.data(); renderAll(); }, () => {});
   if (S.finance && !S.admin) db.collection("att").onSnapshot(qs => { S.team = {}; for (const d of qs.docs) S.team[d.id] = d.data(); refreshNames(); renderAll(); }, () => {});
   if (S.admin) {
@@ -3259,6 +3651,15 @@ $("#prMonth").addEventListener("change", e => { if (!e.target.value) return; S.p
 $("#prRefresh").addEventListener("click", loadPrMonths);
 $("#prCsv").addEventListener("click", downloadPayCsv);
 $("#prSwitch").addEventListener("click", togglePayslips);
+$("#prDrive").addEventListener("click", () => payrunToDrive(S.prYM));
+$("#lfInvite").addEventListener("click", inviteCandidate);
+$("#lfSepBtn").addEventListener("click", () => { const s = $("#lfSep"); s.hidden = !s.hidden; s.replaceChildren(); renderLife(); });
+$("#drvCopy").addEventListener("click", async () => { if (!S.drvAdmin) await loadDriveAdmin(); if (!S.drvAdmin || !S.drvAdmin.secret) { toast("Only the CEO can see the script."); return; } const code = driveScript();
+  try { await navigator.clipboard.writeText(code); toast("Script copied. Paste it into script.new."); } catch { const box = $("#drvCode"); box.hidden = false; box.replaceChildren(h("div", { class:"meta", text:"Select all and copy:" }), h("textarea", { class:"codebox", rows:"10", text: code, style:"width:100%" })); } });
+$("#drvSave").addEventListener("click", async () => { const u = $("#drvUrl").value.trim(); try { await drv.setUrl(u); toast(u ? "Saved. Now press Test connection." : "Disconnected"); await loadDriveAdmin(); } catch (e) { toast(e.message || "Couldn't save."); } });
+$("#drvTest").addEventListener("click", async () => { const r = await srv({ op:"ping" }); if (r) toast(`Connected to "${r.folder}" in ${r.email}'s Drive`); });
+$("#drvSync").addEventListener("click", async () => { toast("Backing up…"); const r = await srv({ op:"sync" }); if (r) toast(r.ok ? `Backed up: ${r.files} files saved to Drive` : "Backup had problems: " + (r.errors || []).join("; ")); });
+for (const k of ["autoApprove", "autoCycles", "driveNightly"]) $("#" + k).addEventListener("change", e => setAuto(k, e.target.checked));
 $("#prSend").addEventListener("click", () => { $("#pcPanel").scrollIntoView({ behavior:"smooth" }); if (pcState().k === "none" || pcState().k === "stale") sendPayCheck(); });
 $("#hrDocsWho").addEventListener("change", e => { S.hrDocsSel = e.target.value; renderHrDocs(); });
 $("#prLock").addEventListener("click", lockPayrun);

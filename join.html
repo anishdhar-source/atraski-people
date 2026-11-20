@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0F1730">
+<title>Join Atraski</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230F1730'/%3E%3Ctext x='32' y='42' font-size='26' font-family='Arial' font-weight='700' text-anchor='middle' fill='%23FF8A5C'%3EAP%3C/text%3E%3C/svg%3E">
+<style>
+:root{color-scheme:light;--bg:#F4F6FA;--surface:#fff;--sunk:#F0F2F7;--ink:#121A2F;--muted:#5D667C;--line:#E2E6EE;--brand:#0F1730;--accent:#E8572A;--ok:#0B7A5C;--okbg:#E3F4EE;--warn:#B45309;--warnbg:#FEF3E2;--bad:#C2362B;--badbg:#FDECEC;--r:16px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+header{background:var(--brand);color:#fff;padding:18px 16px}
+header .in{max-width:880px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.mark{width:38px;height:38px;border-radius:10px;background:#FF8A5C;color:var(--brand);display:grid;place-items:center;font-weight:800}
+header b{font-size:17px} header span{display:block;font-size:12px;color:#AEB6CE}
+main{max-width:880px;margin:0 auto;padding:20px 16px 64px;display:grid;gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px;display:grid;gap:14px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
+h1{font-size:22px;margin:0} h2{font-size:17px;margin:0} .muted{color:var(--muted);font-size:13.5px;margin:0}
+.steps{display:flex;gap:8px;flex-wrap:wrap}
+.steps span{font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.steps span.done{background:var(--okbg);color:var(--ok)} .steps span.now{background:#FFE8DF;color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+label.f{display:grid;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted)}
+label.wide{grid-column:1/-1}
+input,select,textarea{font:inherit;font-size:14px;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 12px;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px #FFE8DF}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--ink);font-weight:500}
+.chk input{width:18px;height:18px;margin-top:2px;flex:none}
+.req{color:var(--bad)}
+.sec{border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px}
+.sec h3{margin:0;font-size:15px}
+.btn{font:inherit;font-size:14px;font-weight:600;border-radius:10px;padding:10px 16px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.dark{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.sm{padding:6px 12px;font-size:13px}
+.btn:disabled{opacity:.55;cursor:default}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.doc{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:12px;padding:10px 12px;flex-wrap:wrap}
+.pill{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.pill.ok{background:var(--okbg);color:var(--ok)} .pill.warn{background:var(--warnbg);color:var(--warn)}
+.banner{border-radius:12px;padding:12px 14px;background:var(--warnbg);color:#5B3A06;font-size:14px}
+.banner.ok{background:var(--okbg);color:#064E3B} .banner.bad{background:var(--badbg);color:#7F1D1D}
+.letter{border:1px solid var(--line);border-radius:12px;padding:22px 26px;background:#fff}
+.letter .lt{text-align:center;font-weight:800;margin:12px 0 4px;letter-spacing:.04em}
+.letter .lp{white-space:pre-line;margin:8px 0}
+.letter .lh{font-weight:700;margin:14px 0 4px}
+.letter table{border-collapse:collapse;width:100%;font-size:14px}
+.letter td{border:1px solid #D7DCE6;padding:6px 9px} .letter td:first-child{background:#F4F6FA;font-weight:600;width:40%}
+.letter .ln{font-size:12.5px;color:var(--muted);font-style:italic}
+.letter .ls{color:var(--ok);font-weight:700}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#121A2F;color:#fff;padding:12px 18px;border-radius:12px;font-size:14px;max-width:calc(100vw - 32px);z-index:9;box-shadow:0 18px 40px -18px rgba(16,24,40,.4)}
+[hidden]{display:none!important}
+@media print{header,.noprint,.toast{display:none!important} body{background:#fff} .panel{border:0;box-shadow:none}}
+</style>
+</head>
+<body>
+<header><div class="in"><div class="mark" aria-hidden="true">AP</div><div><b>Atraski People</b><span>Joining Atraski India · At Buzz</span></div></div></header>
+<main id="app"><div class="panel"><p class="muted">Loading your joining page…</p></div></main>
+<div class="toast" id="toast" role="status" hidden></div>
+<script>
+(() => {
+const FN = "https://vqulrucfatgbfqirkmwf.supabase.co/functions/v1/drive", KEY = "sb_publishable_9lZzAiUW_67brwNbQh8o7w_2hP8q-Vi";
+const [cid, token] = (location.hash.slice(1) || "").split(".");
+const app = document.getElementById("app");
+let V = null, busy = false, draft = {}, loiSign = "", loiOk = false, why0 = "";
+const h = (tag, props, ...kids) => { const el = document.createElement(tag); for (const [k, v] of Object.entries(props || {})) { if (v == null || v === false) continue; if (k === "class") el.className = v; else if (k === "text") el.textContent = v; else if (k === "value") el.value = v; else if (k.startsWith("on")) el.addEventListener(k.slice(2), v); else el.setAttribute(k, v === true ? "" : v); } for (const c of kids.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c))); return el; };
+function toast(t){ const el = document.getElementById("toast"); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => el.hidden = true, 4200); }
+async function call(body){
+  const r = await fetch(FN, { method:"POST", headers:{ "Content-Type":"application/json", apikey: KEY }, body: JSON.stringify({ op:"portal", cid, token, ...body }) });
+  const j = await r.json().catch(() => ({})); if (!r.ok || j.ok === false) throw new Error(j.error || "Something went wrong. Try again."); return j;
+}
+const dmy = ds => ds ? ds.slice(0, 10).split("-").reverse().join("/") : "";
+const DOCS = [["aadhaar","Aadhaar card",1],["pan","PAN card",1],["photo","Passport-size photo",1],["education","Highest educational certificate",1],["address","Address proof",1],["experience","Last relieving / experience letter",0],["bank","Cancelled cheque or bank proof",0]];
+const F = [
+  ["Personal details", [["fullName","Full name (as on Aadhaar)","text",1],["fatherName","Father's or spouse's name","text",0],["dob","Date of birth","date",1],["gender","Gender","select",0,["","Female","Male","Other","Prefer not to say"]],["marital","Marital status","select",0,["","Single","Married","Other"]],["blood","Blood group","select",0,["","A+","A−","B+","B−","AB+","AB−","O+","O−","Don't know"]],["nationality","Nationality","text",0]]],
+  ["Contact", [["mobile","Mobile","tel",1],["altMobile","Alternate mobile","tel",0],["email","Personal email","email",1],["curAddr","Current address","textarea",1],["curCity","City","text",0],["curState","State","text",0],["curPin","PIN code","text",0],["sameAddr","My permanent address is the same","check",0],["permAddr","Permanent address","textarea",0],["permCity","City","text",0],["permState","State","text",0],["permPin","PIN code","text",0]]],
+  ["Identity", [["pan","PAN","text",1],["aadhaar4","Aadhaar: last 4 digits only","text",1],["uan","UAN (PF), if you have one","text",0]]],
+  ["Emergency contact", [["emName","Name","text",1],["emRelation","Relationship","text",0],["emPhone","Phone","tel",1]]],
+  ["Education", [["eduLevel","Highest qualification","select",0,["","10th","12th","Diploma","Graduate","Post-graduate","Doctorate"]],["eduDegree","Degree / course","text",0],["eduInst","College / institute","text",0],["eduYear","Year of passing","text",0]]],
+  ["Previous employment", [["firstJob","This will be my first job","check",0],["prevCo","Last company","text",0],["prevRole","Designation","text",0],["prevFrom","From","month",0],["prevTo","To","month",0]]],
+  ["Declaration", [["declare","I confirm these details are true and complete, and I'll tell Atraski if anything changes.","check",1]]]];
+const skip = (k, d) => (/^perm/.test(k) && d.sameAddr) || (/^prev/.test(k) && d.firstJob);
+function read(){ const d = {}; for (const [, fs] of F) for (const [k, , t] of fs) { const el = document.getElementById("f_" + k); if (!el) { if (k in draft) d[k] = draft[k]; continue; } d[k] = t === "check" ? el.checked : el.value.trim(); } return d; }
+function steps(){
+  const st = V.stage, s1 = !["invited","returned"].includes(st), s2 = ["loi_accepted","joined"].includes(st), s3 = st === "joined";
+  const list = [["1. Your details & documents", s1], ["2. Letter of Intent", s2], ["3. Joining", s3]];
+  return h("div", { class:"steps" }, ...list.map(([t, d], i) => h("span", { class: d ? "done" : i === list.findIndex(x => !x[1]) ? "now" : "", text: t })));
+}
+function letter(blocks, sign){
+  return h("div", { class:"letter" }, h("div", { style:"font-weight:800;color:#0F1730;font-size:17px", text:"ATRASKI INDIA" }), h("div", { class:"muted", style:"font-size:11px;border-bottom:1px solid #D7DCE6;padding-bottom:8px", text:"Atraski India · At Buzz" }),
+    ...(blocks || []).map(b => b.t === "title" ? h("div", { class:"lt", text:b.text }) : b.t === "h" ? h("div", { class:"lh", text:b.text }) : b.t === "note" ? h("div", { class:"ln", text:b.text }) : b.t === "sign" ? h("div", { class:"ls", text:b.text })
+      : b.t === "kv" ? h("table", null, h("tbody", null, ...(b.rows || []).map(r => h("tr", null, h("td", { text:r[0] }), h("td", { text:r[1] }))))) : h("div", { class:"lp", text:b.text || "" })),
+    sign ? h("div", { class:"ls", text: sign }) : null);
+}
+async function act(body, okMsg){ if (busy) return; busy = true; render(); try { V = await call(body); if (okMsg) toast(okMsg); } catch (e) { toast(e.message); } finally { busy = false; render(); } }
+function upload(key){
+  const inp = h("input", { type:"file", accept:".pdf,.jpg,.jpeg,.png,.webp,.heic,.doc,.docx,application/pdf,image/*" });
+  inp.onchange = () => { const f = inp.files && inp.files[0]; if (!f) return; if (f.size > 8 * 1024 * 1024) { toast("Files can be up to 8 MB. Try a smaller scan or photo."); return; }
+    const r = new FileReader(); r.onload = () => { draft = read(); act({ act:"upload", key, mime: f.type || (/\.pdf$/i.test(f.name) ? "application/pdf" : ""), data: String(r.result).split(",")[1] }, "Uploaded"); }; r.readAsDataURL(f); };
+  inp.click();
+}
+function form(){
+  const d = { ...(V.details || {}), ...draft }, docs = V.docs || {};
+  const field = ([k, label, t, req, opts]) => {
+    if (skip(k, d)) return null;
+    const id = "f_" + k;
+    if (t === "check") return h("label", { class:"chk wide" }, h("input", { id, type:"checkbox", checked: !!d[k], onchange: () => { draft = read(); render(); } }), label + (req ? " *" : ""));
+    const ctl = t === "select" ? h("select", { id }, ...opts.map(o => h("option", { value:o, selected: (d[k] || "") === o, text: o || "Select" }))) : t === "textarea" ? h("textarea", { id, rows:"2", text: d[k] || "" })
+      : h("input", { id, type: t, value: d[k] || "", ...(k === "aadhaar4" ? { inputmode:"numeric", maxlength:"4", placeholder:"1234" } : k === "pan" ? { maxlength:"10", placeholder:"ABCDE1234F", style:"text-transform:uppercase" } : {}) });
+    return h("label", { class: "f" + (t === "textarea" ? " wide" : "") }, h("span", null, label, req ? h("span", { class:"req", text:" *" }) : null), ctl);
+  };
+  const miss = DOCS.filter(([k, , r]) => r && !docs[k]).length;
+  return [
+    V.stage === "returned" && V.note ? h("div", { class:"banner", text:`Atraski asked for a change: ${V.note}` }) : null,
+    h("div", { class:"panel" }, h("h2", { text:"Your details" }), h("p", { class:"muted", text:"Only Atraski's CEO sees these. We don't ask for bank account numbers or your full Aadhaar number here." }),
+      ...F.map(([title, fs]) => h("div", { class:"sec" }, h("h3", { text: title }), h("div", { class:"grid" }, ...fs.map(field)))),
+      h("div", { class:"row" }, h("button", { class:"btn", disabled: busy, onclick: () => { const x = read(); draft = {}; act({ act:"save", details: x }, "Saved"); }, text: busy ? "Saving…" : "Save" }))),
+    h("div", { class:"panel" }, h("h2", { text:"Your documents" }), h("p", { class:"muted", text:"PDF or a clear photo, up to 8 MB each. They go straight into Atraski's private Drive folder for you." }),
+      ...DOCS.map(([k, label, req]) => h("div", { class:"doc" }, h("div", null, h("b", { text: label }), req ? h("span", { class:"req", text:" *" }) : h("span", { class:"muted", text:" (if you have one)" }), docs[k] ? h("div", { class:"muted", style:"font-size:12px", text:`${docs[k].file || "Uploaded"}` }) : null),
+        h("div", { class:"row" }, h("span", { class:"pill" + (docs[k] ? " ok" : ""), text: docs[k] ? "Uploaded" : "Missing" }), h("button", { class:"btn sm", disabled: busy, onclick: () => upload(k), text: docs[k] ? "Replace" : "Upload" }))))),
+    h("div", { class:"panel" }, h("h2", { text:"Send to Atraski" }), h("p", { class:"muted", text: miss ? `${miss} required document${miss === 1 ? " is" : "s are"} still missing.` : "Everything is uploaded. Save your details, then send." }),
+      h("div", { class:"row" }, h("button", { class:"btn primary", disabled: busy, onclick: async () => { const x = read(); if (busy) return; busy = true; render(); try { V = await call({ act:"save", details: x }); draft = {}; V = await call({ act:"submit" }); toast("Sent. We'll get back to you soon."); } catch (e) { toast(e.message); } finally { busy = false; render(); } }, text: busy ? "Sending…" : "Save and send" })))];
+}
+function render(){
+  if (!V) return;
+  const first = (V.name || "").split(" ")[0];
+  const head = h("div", { class:"panel" }, h("h1", { text:`Hi ${first}` }), h("p", { class:"muted", text:`${V.role || ""}${V.dept ? " · " + V.dept : ""} · ${V.company === "At Buzz" ? "At Buzz" : "Atraski India"}${V.join ? " · joining " + dmy(V.join) : ""}` }), steps());
+  let body = [];
+  const st = V.stage;
+  if (st === "invited" || st === "returned") body = form();
+  else if (st === "submitted") body = [h("div", { class:"panel" }, h("div", { class:"banner ok", text:"Thanks! Your details and documents are with us. You'll get your Letter of Intent on this page and by email once they're reviewed." }))];
+  else if (st === "loi_sent") {
+    const sign = h("input", { placeholder:`Type your full name: ${V.name}`, value: loiSign, oninput: e => { loiSign = e.target.value; } }), ok = h("input", { type:"checkbox", checked: loiOk, onchange: e => { loiOk = e.target.checked; } }), why = h("input", { placeholder:"Reason (optional)", value: why0, oninput: e => { why0 = e.target.value; } });
+    body = [h("div", { class:"panel" }, h("div", { class:"row", style:"justify-content:space-between" }, h("h2", { text:"Your Letter of Intent" }), h("button", { class:"btn sm noprint", onclick: () => window.print(), text:"Print / save" })),
+      h("p", { class:"muted", text:`Please confirm by ${dmy(V.loi.acceptBy)}.` }), letter(V.loi.blocks),
+      h("div", { class:"sec noprint" }, h("h3", { text:"Confirm your intent to join" }), h("label", { class:"chk" }, ok, "I've read the Letter of Intent and confirm my intent to join on these terms."), sign,
+        h("div", { class:"row" }, h("button", { class:"btn primary", disabled: busy, onclick: () => { if (!ok.checked) { toast("Tick the box first."); return; } act({ act:"loi", signName: sign.value }, "Confirmed. Your signed copy is in your email."); }, text: busy ? "Signing…" : "Confirm and sign" }))),
+      h("details", { class:"noprint" }, h("summary", { class:"muted", style:"cursor:pointer", text:"Not joining?" }), h("div", { class:"row", style:"margin-top:8px" }, why, h("button", { class:"btn", disabled: busy, onclick: () => { if (confirm("Decline this Letter of Intent?")) act({ act:"loi", decline: true, reason: why.value }, "We've let Atraski know."); }, text:"Decline" }))))];
+  }
+  else if (st === "loi_accepted") {
+    const app = location.href.replace(/join\.html.*$/, "");
+    body = [h("div", { class:"panel" }, h("div", { class:"banner ok", text:`You're all set, ${first}! You confirmed your Letter of Intent on ${new Date(V.loi.acceptedAt).toLocaleDateString("en-IN")}.` }),
+      h("h2", { text:"On your joining day" }), h("p", { class:"muted", text:`Open Atraski People and create your account with ${V.email}. Your appointment letter will be waiting for you to read and accept, and you'll punch in from there.` }),
+      h("div", { class:"row" }, h("a", { class:"btn dark", href: app, text:"Open Atraski People" })), h("details", null, h("summary", { class:"muted", style:"cursor:pointer", text:"Read your signed Letter of Intent" }), letter(V.loi.blocks, `Intent to join confirmed electronically by ${V.loi.signName}.`)))];
+  }
+  else if (st === "declined") body = [h("div", { class:"panel" }, h("div", { class:"banner", text:"You declined this offer. If that was a mistake, reply to Atraski's email." }))];
+  else if (st === "joined") body = [h("div", { class:"panel" }, h("div", { class:"banner ok", text:"Welcome aboard! You've joined. Use Atraski People for everything from here." }), h("a", { class:"btn dark", href: location.href.replace(/join\.html.*$/, ""), text:"Open Atraski People" }))];
+  app.replaceChildren(head, ...body.filter(Boolean));
+}
+if (!cid || !token) { app.replaceChildren(h("div", { class:"panel" }, h("h1", { text:"This link isn't complete" }), h("p", { class:"muted", text:"Open the link from your email again, or ask Atraski to resend it." }))); return; }
+history.replaceState(null, "", location.pathname + location.hash);
+call({ act:"get" }).then(v => { V = v; render(); }).catch(e => app.replaceChildren(h("div", { class:"panel" }, h("h1", { text:"We couldn't open your page" }), h("p", { class:"muted", text: e.message }))));
+})();
+</script>
+</body>
+</html>
