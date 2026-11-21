@@ -69,6 +69,8 @@ let V = null, busy = false, draft = {}, loiSign = "", loiOk = false, why0 = "";
 const h = (tag, props, ...kids) => { const el = document.createElement(tag); for (const [k, v] of Object.entries(props || {})) { if (v == null || v === false) continue; if (k === "class") el.className = v; else if (k === "text") el.textContent = v; else if (k === "value") el.value = v; else if (k.startsWith("on")) el.addEventListener(k.slice(2), v); else el.setAttribute(k, v === true ? "" : v); } for (const c of kids.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c))); return el; };
 function toast(t){ const el = document.getElementById("toast"); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => el.hidden = true, 4200); }
 async function call(body){
+  if (body.act === "loi") { const r2 = await fetch(FN + "2", { method:"POST", headers:{ "Content-Type":"application/json", apikey: KEY }, body: JSON.stringify({ op:"portal_loi", cid, token, ...body }) });
+    const j2 = await r2.json().catch(() => ({})); if (!r2.ok || j2.ok === false) throw new Error(j2.error || "Something went wrong. Try again."); body = { act:"get" }; }
   const r = await fetch(FN, { method:"POST", headers:{ "Content-Type":"application/json", apikey: KEY }, body: JSON.stringify({ op:"portal", cid, token, ...body }) });
   const j = await r.json().catch(() => ({})); if (!r.ok || j.ok === false) throw new Error(j.error || "Something went wrong. Try again."); return j;
 }

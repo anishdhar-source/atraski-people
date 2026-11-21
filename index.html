@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Atraski People">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230F1730'/%3E%3Ctext x='32' y='42' font-size='26' font-family='Arial' font-weight='700' text-anchor='middle' fill='%23FF8A5C'%3EAP%3C/text%3E%3C/svg%3E">
 <title>Atraski People</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -209,7 +211,22 @@ function mountAccountBar(){
   if (lvl() >= 3) { accessBtn = el("button", { type: "button", onclick: openAccess }, "Access"); bar.append(accessBtn); refreshAccessBadge(); }
   bar.append(el("button", { type: "button", onclick: signOut, text: "Sign out" }));
   host.append(bar);
+  showInstall();
 }
+// ---------- installable app ----------
+let deferredInstall = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstall = e; showInstall(); });
+function showInstall(){
+  const bar = document.getElementById("acct"); if (!bar || document.getElementById("installBtn")) return;
+  const standalone = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (standalone || (!deferredInstall && !ios)) return;
+  bar.prepend(el("button", { id: "installBtn", type: "button", onclick: async () => {
+    if (deferredInstall) { deferredInstall.prompt(); try { await deferredInstall.userChoice; } catch {} deferredInstall = null; const b = document.getElementById("installBtn"); if (b) b.remove(); }
+    else alert("On iPhone or iPad: tap the Share button in Safari, then 'Add to Home Screen'.");
+  } }, "Install app"));
+}
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 function refreshAccessBadge(){ if (!accessBtn) return; const n = [...members.values()].filter(m => m.role === "pending").length; accessBtn.replaceChildren("Access", n ? el("span", { class: "b", text: n }) : ""); }
 async function openAccess(){
   const { data, error } = await sb.rpc("list_members");
@@ -234,12 +251,14 @@ async function openAccess(){
 const drive = {
   async call(body){
     const { data } = await sb.auth.getSession(); const tok = data && data.session && data.session.access_token;
-    const r = await fetch(SB_URL + "/functions/v1/drive", { method: "POST", headers: { "Content-Type": "application/json", apikey: SB_KEY, ...(tok ? { Authorization: "Bearer " + tok } : {}) }, body: JSON.stringify(body) });
+    const fn = ["letter_accept", "appraisal", "digest", "registers"].includes(body && body.op) ? "drive2" : "drive";
+    const r = await fetch(SB_URL + "/functions/v1/" + fn, { method: "POST", headers: { "Content-Type": "application/json", apikey: SB_KEY, ...(tok ? { Authorization: "Bearer " + tok } : {}) }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || j.ok === false) throw new Error(j.error || ("The server answered " + r.status));
     return j;
   },
   async admin(){ const { data, error } = await sb.rpc("drive_admin"); if (error) throw new Error(error.message); return data || {}; },
+  async rpc(name, args){ const { data, error } = await sb.rpc(name, args || {}); if (error) throw new Error(error.message); return data; },
   async setUrl(url){ const { error } = await sb.rpc("set_drive_url", { p_url: url || null }); if (error) throw new Error(error.message); }
 };
 const access = {
@@ -583,6 +602,8 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
       <div class="ng"><div class="ngroup">Me</div>
         <a href="#me" data-route="me" data-icon="clock">Attendance &amp; leave</a>
           <a href="#travel" data-route="travel" data-icon="plane">Travel &amp; claims</a>
+        <a href="#loans" data-route="loans" data-icon="wallet">Loans &amp; advances</a>
+        <a href="#help" data-route="help" data-icon="inbox">Help desk</a>
         <a href="#perf" data-route="perf" data-icon="target">Performance</a>
         <a href="#payslips" data-route="payslips" data-icon="wallet">Payslips</a>
         <a href="#onboard" data-route="onboard" data-icon="idcard">My onboarding</a></div>
@@ -590,10 +611,13 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
         <a href="#team" data-route="team" data-icon="team" hidden>Team</a></div>
       <div class="ng"><div class="ngroup">Company</div>
         <a href="#directory" data-route="directory" data-icon="directory">People directory</a>
+        <a href="#engage" data-route="engage" data-icon="team">Kudos &amp; polls</a>
         <a href="#docs" data-route="docs" data-icon="book">Policies &amp; documents</a></div>
       <div class="ng"><div class="ngroup">Admin</div>
         <a href="#life" data-route="life" data-icon="team" hidden>Hiring &amp; exits</a>
         <a href="#people" data-route="people" data-icon="idcard" hidden>Employee records</a>
+        <a href="#assets" data-route="assets" data-icon="banknote" hidden>Assets</a>
+        <a href="#reports" data-route="reports" data-icon="book" hidden>Reports</a>
         <a href="#org" data-route="org" data-icon="org" hidden>Structure</a>
         <a href="#payrun" data-route="payrun" data-icon="banknote" hidden>Pay run</a>
         <a href="#policy" data-route="policy" data-icon="sliders" hidden>Policy settings</a></div>
@@ -791,6 +815,10 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
       <div><span class="eyebrow">Issued to you · signed copies go to your email</span><h2>My letters</h2></div>
       <div class="list" id="myLetters"></div>
     </div>
+    <div class="panel stack" id="myAssetsPanel" hidden>
+      <div><span class="eyebrow">ATR-HR-07 · return everything when you leave</span><h2>Assets with me</h2></div>
+      <div class="list" id="myAssets"></div>
+    </div>
     <div class="panel stack" id="myExitPanel">
       <div><span class="eyebrow">ATR-HR-10 · notice, handover and full &amp; final</span><h2 id="myExitTitle">Resignation</h2></div>
       <div id="myExit" class="stack"></div>
@@ -828,6 +856,53 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
     <div class="panel stack"><div><span class="eyebrow">People who joined before Atraski People</span><h2>Appointment letters for the current team</h2></div>
       <p class="muted" style="margin:0;font-size:13px;max-width:90ch">Issue each person's appointment, internship or traineeship letter from their records (position, joining date, manager, office and salary). They read and accept it in the app, and the signed copy goes to their Drive folder.</p>
       <div class="list" id="lfStaff"></div></div>
+  </section>
+
+  <!-- ASSETS -->
+  <section id="v-assets" class="stack" hidden>
+    <div class="panel stack">
+      <div><span class="eyebrow">ATR-HR-07 · company assets</span><h2>Add an asset</h2></div>
+      <div class="fgrid">
+        <label class="f">Type<select id="asType"><option>Laptop</option><option>Mobile</option><option>SIM card</option><option>ID card</option><option>Access card</option><option>Keys</option><option>Monitor</option><option>Camera</option><option>Other</option></select></label>
+        <label class="f">Make / model<input id="asName" placeholder="e.g. MacBook Air M2"></label>
+        <label class="f">Serial / tag<input id="asSerial"></label>
+        <label class="f">Value (₹)<input id="asValue" type="number" min="0"></label>
+        <label class="f">Bought on<input id="asBought" type="date"></label>
+      </div>
+      <div><button class="btn primary" id="asAdd" type="button">Add to register</button></div>
+    </div>
+    <div class="panel stack"><div class="row between"><div><span class="eyebrow">Who has what</span><h2>Asset register</h2></div><div class="row" id="asCounts"></div></div>
+      <div class="tbl-wrap"><table style="min-width:980px"><thead><tr><th>Asset</th><th>Serial</th><th>Value</th><th>With</th><th>Since</th><th>Acknowledged</th><th>Action</th></tr></thead><tbody id="asBody"></tbody></table></div></div>
+  </section>
+
+  <!-- HELP DESK -->
+  <section id="v-help" class="stack" hidden>
+    <div class="panel stack" id="tkNewPanel">
+      <div><span class="eyebrow">Questions about leave, pay, claims, letters or equipment</span><h2>Raise a ticket</h2></div>
+      <div class="fgrid">
+        <label class="f">Topic<select id="tkCat"><option>Leave &amp; attendance</option><option>Pay &amp; payslips</option><option>Travel &amp; claims</option><option>Documents &amp; letters</option><option>IT &amp; assets</option><option>Something else</option></select></label>
+        <label class="f" style="grid-column:span 2">Subject<input id="tkSubject" maxlength="120"></label>
+      </div>
+      <label class="f">Details<textarea id="tkBody" rows="3" maxlength="2000"></textarea></label>
+      <div class="row"><button class="btn primary" id="tkSend" type="button">Send</button><button class="btn" id="tkAttach" type="button">Attach a file</button><span class="muted" id="tkFile" style="font-size:12.5px"></span></div>
+    </div>
+    <div class="panel stack"><div class="row between"><div><span class="eyebrow" id="tkEyebrow">Your tickets</span><h2>Tickets</h2></div><div class="row" id="tkFilter"></div></div><div class="list" id="tkList"></div></div>
+  </section>
+
+  <!-- LOANS & ADVANCES -->
+  <section id="v-loans" class="stack" hidden>
+    <div class="panel stack">
+      <div><span class="eyebrow">Salary advance or loan · recovered as monthly EMIs from salary (ATR-HR-09)</span><h2>Request money</h2></div>
+      <div class="fgrid">
+        <label class="f">Type<select id="lnKind"><option value="advance">Salary advance</option><option value="loan">Loan</option></select></label>
+        <label class="f">Amount (₹)<input id="lnAmt" type="number" min="500" step="500"></label>
+        <label class="f">Repay over<select id="lnMonths"><option value="1">1 month</option><option value="2">2 months</option><option value="3">3 months</option><option value="4">4 months</option><option value="5">5 months</option><option value="6">6 months</option><option value="7">7 months</option><option value="8">8 months</option><option value="9">9 months</option><option value="10">10 months</option><option value="11">11 months</option><option value="12">12 months</option></select></label>
+      </div>
+      <label class="f">Purpose<input id="lnWhy" maxlength="200"></label>
+      <div><button class="btn primary" id="lnSend" type="button">Send request</button></div>
+    </div>
+    <div class="panel stack"><div><span class="eyebrow">Yours</span><h2>My requests and loans</h2></div><div class="list" id="lnMine"></div></div>
+    <div class="panel stack" id="lnAdminPanel" hidden><div><span class="eyebrow">CEO approves · finance can see</span><h2>All requests and active loans</h2></div><div class="list" id="lnAll"></div></div>
   </section>
 
   <!-- PAYSLIPS -->
@@ -910,6 +985,57 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
       <div class="tbl-wrap"><table class="prt" style="min-width:900px"><thead><tr><th>Employee</th><th>KRA sheet</th><th>Self-assessment</th><th>Manager</th><th>HR</th><th>Score</th><th>Band</th><th></th></tr></thead><tbody id="pfTeamBody"></tbody></table></div>
       <div id="pfReview" class="stack"></div>
     </div>
+    <div class="panel stack" id="goalPanel">
+      <div class="row between"><div><span class="eyebrow">Quarterly goals · your manager can see and comment</span><h2>My goals</h2></div><select id="goalQ" style="width:auto" aria-label="Quarter"></select></div>
+      <div class="list" id="goalList"></div>
+      <div class="lrow"><input id="goalTitle" placeholder="Goal (e.g. Launch 3 client campaigns)" style="flex:2;min-width:200px"><input id="goalMeasure" placeholder="How it's measured" style="flex:1;min-width:150px"><input id="goalWeight" type="number" min="5" max="100" step="5" placeholder="Weight %" style="width:100px"><input id="goalDue" type="date"><button class="btn sm primary" id="goalAdd" type="button">Add goal</button></div>
+      <div id="goalTeam" class="stack" hidden></div>
+    </div>
+    <div class="panel stack" id="fbPanel">
+      <div><span class="eyebrow">360° feedback · answers are anonymous to the person reviewed</span><h2>Feedback</h2></div>
+      <div id="fbAsk" class="stack" hidden></div>
+      <div class="list" id="fbMine"></div>
+      <div id="fbSummary" class="stack" hidden></div>
+    </div>
+    <div class="panel stack" id="calPanel" hidden>
+      <div class="row between"><div><span class="eyebrow">CEO only · selected review cycle</span><h2>Calibration &amp; appraisal</h2></div><button class="btn sm" id="calLoad" type="button">Load ratings</button></div>
+      <div id="calDist" class="lrow"></div>
+      <div class="tbl-wrap"><table style="min-width:980px"><thead><tr><th>Employee</th><th>Manager</th><th>KRA score</th><th>360° avg</th><th>Goals done</th><th>Calibrated</th><th>Note</th><th>Appraisal letter</th></tr></thead><tbody id="calBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ENGAGE -->
+  <section id="v-engage" class="stack" hidden>
+    <div class="grid-2">
+      <div class="panel stack">
+        <div><span class="eyebrow">Say thank you · everyone can see</span><h2>Give kudos</h2></div>
+        <div class="fgrid"><label class="f">To<select id="kdTo"></select></label><label class="f">For<select id="kdVal"><option>Ownership</option><option>Client first</option><option>Creativity</option><option>Teamwork</option><option>Hustle</option><option>Helping out</option></select></label></div>
+        <label class="f">Message<input id="kdMsg" maxlength="240" placeholder="What did they do?"></label>
+        <div><button class="btn primary" id="kdSend" type="button">Send kudos</button></div>
+        <div><span class="eyebrow">Most appreciated this month</span></div><div class="row" id="kdTop"></div>
+      </div>
+      <div class="panel stack">
+        <div class="row between"><div><span class="eyebrow">Anonymous · only totals are shown</span><h2>Polls &amp; pulse</h2></div><button class="btn sm" id="plNewBtn" type="button" hidden>New poll</button></div>
+        <div id="plNew" class="stack" hidden>
+          <label class="f">Question<input id="plQ" maxlength="160"></label>
+          <label class="f">Options (comma separated)<input id="plOpts" placeholder="Yes, No, Not sure"></label>
+          <div class="lrow"><label class="chk"><input type="checkbox" id="plEnps"> eNPS pulse (0–10 "would you recommend Atraski as a place to work?")</label><label class="f">Closes<input type="date" id="plClose"></label><button class="btn sm primary" id="plCreate" type="button">Publish</button></div>
+        </div>
+        <div class="list" id="plList"></div>
+      </div>
+    </div>
+    <div class="panel stack"><div><span class="eyebrow">Everyone</span><h2>Kudos wall</h2></div><div class="list" id="kdFeed"></div></div>
+  </section>
+
+  <!-- REPORTS -->
+  <section id="v-reports" class="stack" hidden>
+    <div class="panel stack">
+      <div><span class="eyebrow">Build any list, filter it, group it, download it</span><h2>Report builder</h2></div>
+      <div class="lrow"><label class="f">Data<select id="rbSet"></select></label><label class="f">Month<input type="month" id="rbYM"></label><label class="f">Filter<input id="rbFilter" placeholder="contains…"></label><label class="f">Group by<select id="rbGroup"></select></label><label class="f">Sum<select id="rbSum"></select></label></div>
+      <div class="row" id="rbCols" style="gap:10px"></div>
+      <div class="row"><button class="btn primary" id="rbRun" type="button">Run</button><button class="btn" id="rbCsv" type="button">Download CSV</button><button class="btn" id="rbDrive" type="button">Save to Drive</button><span class="muted" id="rbInfo" style="font-size:12.5px"></span></div>
+      <div class="tbl-wrap"><table style="min-width:900px"><thead id="rbHead"></thead><tbody id="rbBody"></tbody></table></div>
+    </div>
   </section>
 
   <!-- PAY RUN -->
@@ -976,6 +1102,12 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
       <div><span class="eyebrow">Weekly off</span></div>
       <div class="row" id="pWeek"></div>
       <label class="chk"><input type="checkbox" id="pAltSat"> Alternate Saturdays off (2nd and 4th)</label>
+      <div><span class="eyebrow">Punch-in check</span></div>
+      <div class="fgrid">
+        <label class="f">Office location (GPS)<select id="pGeo"><option value="off">Don't check</option><option value="record">Record it and flag punches outside the office</option><option value="require">Block office punch-ins outside the office radius</option></select></label>
+        <label class="chk" style="align-self:end"><input type="checkbox" id="pSelfie"> Take a selfie at punch-in</label>
+      </div>
+      <p class="muted" style="margin:0;font-size:12.5px">Set each office's location below (stand in the office and press "Set to where I am"). Client-site and WFH punches are recorded but never blocked.</p>
       <div><span class="eyebrow">Office locations people can punch in from</span></div>
       <div class="row"><input id="oName" placeholder="e.g. Mumbai office · Andheri" style="flex:1;min-width:180px"><button class="btn" id="oAdd" type="button">Add office</button></div>
       <div class="list" id="oList"></div>
@@ -1020,7 +1152,7 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
         <div><span class="eyebrow">Days WFH is allowed</span></div>
         <div class="row" id="pWfh"></div>
         <div><span class="eyebrow">Holidays</span></div>
-        <div class="row"><input type="date" id="hDate" style="width:auto"><input id="hName" placeholder="Holiday name" style="flex:1;min-width:140px"><button class="btn" id="hAdd" type="button">Add</button></div>
+        <div class="row"><input type="date" id="hDate" style="width:auto"><input id="hName" placeholder="Holiday name" style="flex:1;min-width:140px"><select id="hLoc" style="width:auto" aria-label="Which office"><option value="">All offices</option></select><button class="btn" id="hAdd" type="button">Add</button></div>
         <div class="list" id="hList" style="max-height:320px;overflow:auto"></div>
         <div><span class="eyebrow">Travel &amp; expense (HR-002)</span></div>
         <div class="fgrid">
@@ -1275,7 +1407,7 @@ const DEF = { policyVersion:3, flexFrom:"09:30", flexTo:"11:00", grace:1, fullHo
   shortPerMonth:2, shortMaxMins:60, wfhPerMonth:1, wfhPerQuarter:3, wfhPerHalf:6, wfhPoolNoticeDays:7, wfhHalfNoticeDays:15, uwfhPenalty:false,
   offices:[{ id:"del", n:"Delhi office · Chittaranjan Park" }, { id:"kol", n:"Kolkata office · West Kamalapur" }, { id:"mum", n:"Mumbai office" }],
   wfhDays:[1,2,3,4,5,6], wfhMaxWeek:6, wfhNoticeHours:48, wfhMinMonths:0, wfhFirstDays:14,
-  holidays:[], optional:[], optionalPerYear:2, optionalNoticeDays:7,
+  holidays:[], optional:[], geo:"record", selfie:true, optionalPerYear:2, optionalNoticeDays:7,
   payBasis:"working", tePreDays:3, teClaimDays:7, teAirDays:7, teCab:500, teAuto:200, teHotel:3000 };
 let P = clone(DEF);
 const LT = { cl:"Casual / sick leave (CL/SL)", sl:"Sick leave (from CL/SL)", el:"Earned leave (EL)", bereavement:"Bereavement leave", emergency:"Emergency leave", maternity:"Maternity leave", unpaid:"Leave without pay (LWP)" };
@@ -1297,8 +1429,9 @@ function locName(l, note, short){
 let lsLoc = null; try { lsLoc = localStorage.getItem("atraski-loc"); } catch {}
 const DOW_LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const lateAfterMin = () => mins(P.flexTo || "11:00") + Number(P.grace || 0);
-function offReason(ds){
-  const hol = (P.holidays||[]).find(x => x.d === ds); if (hol) return hol.n || "Holiday";
+function offReason(ds, id){
+  const who = id === undefined ? S.uid : id, base = who ? baseOf(who) : null;
+  const hol = (P.holidays||[]).find(x => x.d === ds && (!x.loc || !who || !base || x.loc === base)); if (hol) return hol.n || "Holiday";
   const d = parseD(ds), wd = d.getDay();
   if ((P.weekOff||[]).includes(wd)) return "Weekly off";
   if (P.altSat && wd === 6) { const n = Math.ceil(d.getDate()/7); if (n === 2 || n === 4) return (n === 2 ? "2nd" : "4th") + " Saturday off"; }
@@ -1338,10 +1471,10 @@ function reqStatus(r, id, dec){ if (r.withdrawn) return "withdrawn"; const d = d
 function reqList(root, dec){ return Object.entries((root && root.requests) || {}).map(([id, r]) => ({ id, ...r, status: reqStatus(r, id, dec), dec: dec && dec[id] })).sort((a,b) => (b.at||0) - (a.at||0)); }
 const approved = (root, dec) => reqList(root, dec).filter(r => r.status === "approved");
 const live = (root, dec) => reqList(root, dec).filter(r => r.status === "approved" || r.status === "pending");
-function leaveDays(r){
-  if (r.kind === "half") return offReason(r.from) ? [] : [r.from];
+function leaveDays(r, id){
+  if (r.kind === "half") return offReason(r.from, id) ? [] : [r.from];
   const out = []; let ds = r.from; const end = r.to || r.from;
-  while (ds <= end) { if (!offReason(ds)) out.push(ds); ds = addDays(ds, 1); }
+  while (ds <= end) { if (!offReason(ds, id)) out.push(ds); ds = addDays(ds, 1); }
   return out;
 }
 const leaveLen = r => r.kind === "half" ? (leaveDays(r).length ? .5 : 0) : leaveDays(r).length;
@@ -1385,7 +1518,7 @@ function leaveUsed(id, skipDebit){
   const used = {}, pend = {}, y0 = lyStart(S.today), y1 = lyEnd(S.today);
   for (const r of reqList(rootOf(id), decOf(id))) {
     if (!isLeave(r) || (r.status !== "approved" && r.status !== "pending")) continue;
-    const t = pool(lt(r)), bucket = r.status === "approved" ? used : pend, days = leaveDays(r), paid = paidOf(r);
+    const t = pool(lt(r)), bucket = r.status === "approved" ? used : pend, days = leaveDays(r, id), paid = paidOf(r);
     days.forEach((ds, i) => { if (ds >= y0 && ds <= y1) { const amt = r.kind === "half" ? Math.min(.5, paid) : (i < paid ? 1 : 0); bucket[t] = (bucket[t]||0) + amt; } });
   }
   // short-day hours taken from leave when a pay run was locked (ATR-HR-02 §4)
@@ -1407,8 +1540,8 @@ const wfhMonthCount = (id, ds) => wfhCount(id, d => ymOf(d) === ymOf(ds));
 
 // ---------- day evaluation ----------
 function worked(rec, now){ let t = 0; for (const s of (rec && rec.s) || []) { if (s.o) t += s.o - s.i; else if (now) t += now - s.i; } return t; }
-function evalDay(ds, rec, appr, joined){
-  const today = S.today, off = offReason(ds), sess = (rec && rec.s) || [], has = sess.length > 0;
+function evalDay(ds, rec, appr, joined, id){
+  const today = S.today, off = offReason(ds, id), sess = (rec && rec.s) || [], has = sess.length > 0;
   const open = sess.some(s => !s.o), isToday = ds === today;
   const ms = worked(rec, isToday ? Date.now() : 0);
   const anyWfh = sess.some(s => s.m === "wfh");
@@ -1450,7 +1583,7 @@ function summarize(ym, doc, id){
   const root = rootOf(id), appr = approved(root, decOf(id)), n = daysIn(ym), joined = joinOf(id);
   const o = { working:0, soFar:0, office:0, wfh:0, uwfh:0, leave:0, lwp:0, half:0, absent:0, late:0, short:0, missed:0, worked:0, ms:0, msDays:0, days:[] };
   for (let d = 1; d <= n; d++) {
-    const ds = `${ym}-${pad(d)}`, e = evalDay(ds, doc && doc.days && doc.days[pad(d)], appr, joined);
+    const ds = `${ym}-${pad(d)}`, e = evalDay(ds, doc && doc.days && doc.days[pad(d)], appr, joined, id);
     o.days.push(e);
     if (!e.off) { o.working++; if (ds <= S.today) o.soFar++; }
     if (e.has && !e.off && e.mode === "wfh") o.wfh++;
@@ -1836,7 +1969,7 @@ function renderTeam(){
     const lv = appr.find(x => (x.kind === "full" && x.from <= today && (x.to||x.from) >= today) || (x.kind === "optional" && x.from === today));
     const okWfh = appr.some(x => x.kind === "wfh" && x.from === today);
     let code = st, label = "", meta = [];
-    if (st === "office") { label = lv0.loc === "client" ? "Client site" : "In office"; code = lv0.loc === "client" ? "in" : "office"; meta.push((lv0.loc ? locName(lv0.loc, lv0.ln) + " · " : "") + "since " + tLabel(lv0.since)); if (baseOf(id) && lv0.loc && lv0.loc !== baseOf(id) && lv0.loc !== "client") meta.push(`base is ${locName(baseOf(id), "", true)}`); counts.office++; }
+    if (st === "office") { label = lv0.loc === "client" ? "Client site" : "In office"; code = lv0.loc === "client" ? "in" : "office"; meta.push((lv0.loc ? locName(lv0.loc, lv0.ln) + " · " : "") + "since " + tLabel(lv0.since) + (lv0.g ? " · " + geoLabel(lv0.g) : "")); if (baseOf(id) && lv0.loc && lv0.loc !== baseOf(id) && lv0.loc !== "client") meta.push(`base is ${locName(baseOf(id), "", true)}`); counts.office++; }
     else if (st === "wfh") { label = okWfh ? "WFH" : "WFH · unapproved"; code = okWfh ? "wfh" : "uwfh"; meta.push("since " + tLabel(lv0.since)); counts.wfh++; }
     else if (st === "out") { label = "Punched out"; meta.push("at " + tLabel(lv0.since)); }
     else if (st === "leave") { label = lv.kind === "optional" ? lv.name : reqName(lv); counts.leave++; }
@@ -1891,19 +2024,19 @@ async function downloadPunchLog(){
   if (!downloads) { toast("Downloads aren't available in this view."); return; }
   if (!Object.keys(S.rpDocs || {}).length) { await loadReport(); }
   const ym = S.rpYM, esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`, t = ms => ms ? new Date(ms).toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:false }) : "";
-  const head = ["Employee Code","Employee","Company","Date","Day","Day status","Punch in","Punch out","Session hours","Day total hours","Mode","Punch-in location","Punch-out location","Late mark","Short leave","Edited / regularised","LOP days","Paid leave days","Short-day ½ (leave or LOP)","Notes"];
+  const head = ["Employee Code","Employee","Company","Date","Day","Day status","Punch in","Punch out","Session hours","Day total hours","Mode","Punch-in location","Punch-out location","Late mark","Short leave","Edited / regularised","LOP days","Paid leave days","Short-day ½ (leave or LOP)","Notes","GPS check","Map","Selfie"];
   const rows = [head.map(esc).join(",")];
   for (const { id } of reportRows()) {
     const p = person(id), doc = S.rpDocs[id], appr = approved(rootOf(id), decOf(id)), j = joinOf(id);
     for (let d = 1; d <= daysIn(ym); d++) {
       const ds = `${ym}-${pad(d)}`; if (ds > S.today) break;
-      const rec = doc && doc.days && doc.days[pad(d)], e = evalDay(ds, rec, appr, j); if (e.code === "upcoming") continue;
+      const rec = doc && doc.days && doc.days[pad(d)], e = evalDay(ds, rec, appr, j, id); if (e.code === "upcoming") continue;
       const base = [p.code || "", nameOf(id), companyOf(id), ds, DOW_LONG[parseD(ds).getDay()], e.label || (e.off ? String(e.off) : "")];
       const sess = (rec && rec.s) || [];
-      if (!sess.length) { rows.push([...base, "", "", "", e.ms ? (e.ms / 36e5).toFixed(2) : "", "", "", "", "", e.short ? "Yes" : "", e.edited ? "Yes" : "", e.lwp || "", e.paidLeave || "", e.debit || "", (e.notes || []).join("; ")].map(esc).join(",")); continue; }
+      if (!sess.length) { rows.push([...base, "", "", "", e.ms ? (e.ms / 36e5).toFixed(2) : "", "", "", "", "", e.short ? "Yes" : "", e.edited ? "Yes" : "", e.lwp || "", e.paidLeave || "", e.debit || "", (e.notes || []).join("; "), "", "", ""].map(esc).join(",")); continue; }
       sess.forEach((x, i) => rows.push([...base, t(x.i), x.o ? t(x.o) : "Not punched out", x.o ? ((x.o - x.i) / 36e5).toFixed(2) : "", i === 0 ? (e.ms / 36e5).toFixed(2) : "",
         x.m === "wfh" ? "WFH" : "Office", locName(x.m === "wfh" ? "home" : x.l, x.ln), x.o ? locName(x.lo || (x.m === "wfh" ? "home" : x.l), x.ln) : "", i === 0 && e.late ? "Yes" : "",
-        i === 0 && e.short ? "Yes" : "", i === 0 && e.edited ? "Yes" : "", i === 0 ? (e.lwp || "") : "", i === 0 ? (e.paidLeave || "") : "", i === 0 ? (e.debit || "") : "", i === 0 ? (e.notes || []).join("; ") : ""].map(esc).join(",")));
+        i === 0 && e.short ? "Yes" : "", i === 0 && e.edited ? "Yes" : "", i === 0 ? (e.lwp || "") : "", i === 0 ? (e.paidLeave || "") : "", i === 0 ? (e.debit || "") : "", i === 0 ? (e.notes || []).join("; ") : "", geoLabel(x.g), mapUrl(x.g) || "", x.sf || ""].map(esc).join(",")));
     }
   }
   try { await downloads.save({ filename: `atraski-punch-log-${ym}.csv`, data: rows.join("\n") }); toast(`Punch log saved · ${rows.length - 1} rows`); }
@@ -2227,6 +2360,7 @@ function fnfSuggest(id, ex){
   const ready = tripsOf(id).filter(t => tripState(id, t).k === "ready").reduce((a, t) => a + claimTotal(t), 0); if (ready) earn.push(["Approved travel claims (ATR-HR-08)", ready]);
   const yrs = joinOf(id) ? Math.floor(monthsBetween(joinOf(id), ex.lwd) / 12) : 0; if (yrs >= 5) earn.push([`Gratuity: 15/26 × basic × ${yrs} years`, Math.round(15 / 26 * basic * yrs)]);
   const less = [], hv = ex.handover || {};
+  for (const [lid, l] of Object.entries(((S.loanAct[id] || {}).items) || {})) { const b = loanBal(l); if (b > 0) less.push([`Outstanding ${l.label || (l.kind === "advance" ? "salary advance" : "loan")} (${inr(l.amount)})`, b]); }
   if (hv.h5 && hv.h5.amounts) { if (hv.h5.amounts.advances) less.push(["Advances (ATR-HR-09)", hv.h5.amounts.advances]); if (hv.h5.amounts.other) less.push(["Other recoveries", hv.h5.amounts.other]); if (hv.h5.amounts.assets) less.push(["Unreturned assets (ATR-HR-07)", hv.h5.amounts.assets]); }
   if (hv.h4 && hv.h4.amounts && hv.h4.amounts.assets && !(hv.h5 && hv.h5.amounts && hv.h5.amounts.assets)) less.push(["Unreturned assets (ATR-HR-07)", hv.h4.amounts.assets]);
   return { earn, less };
@@ -2260,6 +2394,7 @@ function exitCard(id, ex){
       h("div", { class:"lsub", text:`Notice ${ex.notice} day${ex.notice === 1 ? "" : "s"} · last working day ${dLong(ex.lwd)}${ex.reason ? " · " + ex.reason : ""}` })), h("span", { class:"pill " + st[1], text: st[0] })));
   if (ex.handoverNote) card.append(h("details", null, h("summary", { style:"cursor:pointer;font-size:13px;font-weight:600", text:`Handover note · ${dLabel(ymd(new Date(ex.handoverNote.at)))}${ex.handoverNote.late ? " (late)" : ""}` }), h("div", { class:"lp", style:"white-space:pre-line;font-size:13px;margin-top:6px", text: ex.handoverNote.text }), ex.handoverNote.link ? h("a", { href: ex.handoverNote.link, target:"_blank", rel:"noopener", text:"Open handover document" }) : null));
   else if (ex.stage === "notice") card.append(h("div", { class:"meta", text:"Handover not submitted yet (due 5 working days before the last day)." }));
+  { const held = Object.entries(S.assetReg).filter(([, x]) => x.holder === id); if (held.length && ex.stage !== "closed") card.append(h("div", { class:"meta", text:`Assets still with them: ${held.map(([, x]) => `${x.type} ${x.name}${x.serial ? " (" + x.serial + ")" : ""}`).join(", ")}` })); }
   if (["notice", "nodues", "fnf", "closed"].includes(ex.stage)) card.append(handoverList(id, ex));
   if (canCirculate() && ["notice","nodues"].includes(ex.stage)) { const d = h("input", { type:"date", value: ex.lwd }), n = h("input", { placeholder:"Note (e.g. notice waived)", style:"flex:1;min-width:160px" });
     card.append(h("div", { class:"lrow" }, h("span", { class:"meta", text:"Change last day (only the CEO can shorten or waive notice):" }), d, n, busyBtn(key + "l", "Save", () => srv({ op:"exit_lwd", uid:id, lwd: d.value, note: n.value }, "Last working day updated and emailed", key + "l")),
@@ -2362,6 +2497,312 @@ async function payrunToDrive(ym, quiet){
     await drv.call({ op:"push", path:["Attendance", ym], name:`Attendance summary ${ym}`, tabs:[{ name:"Summary", rows: attTable(ym) }] });
     toast(`Pay run and attendance for ${ymLabel(ym)} saved to Drive`); } catch (e) { toast("Drive: " + (e.message || e)); }
 }
+// =====================================================================================
+// ASSETS (assetreg/main · assetmine/<uid> · assetack/<uid>)
+// =====================================================================================
+Object.assign(S, { assetReg:{}, myAssets:{}, myAssetAck:{}, assetAck:{}, tickets:{}, myTickets:{}, tkFilter:"open", tkFileUp:null, loanReq:{}, loanAct:{}, myLoanReq:{}, myLoanAct:{} });
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+async function upsert(path, patch, exists){ const ref = db.doc(path); return enqueue(() => exists ? ref.update(patch) : ref.set(patch)); }
+async function addAsset(){
+  const v = k => $(k).value.trim(), aid = newId();
+  if (!v("#asName")) { toast("Add the make or model."); return; }
+  const it = { type: $("#asType").value, name: v("#asName").slice(0, 80), serial: v("#asSerial").slice(0, 60), value: Number(v("#asValue")) || 0, bought: v("#asBought"), holder: null, at: Date.now(), history: [{ at: Date.now(), by: S.uid, what: "Added to register" }] };
+  try { await upsert("assetreg/main", { items: { [aid]: it } }, Object.keys(S.assetReg).length > 0 || S.assetRegExists); ["#asName","#asSerial","#asValue","#asBought"].forEach(k => $(k).value = ""); toast("Asset added"); } catch { toast("Couldn't add the asset."); }
+}
+async function assignAsset(aid, uid){
+  const it = S.assetReg[aid]; if (!it || !uid) return;
+  try {
+    await enqueue(async () => {
+      await db.doc("assetreg/main").update({ items: { [aid]: { holder: uid, since: S.today, history: [...(it.history || []), { at: Date.now(), by: S.uid, what: `Assigned to ${nameOf(uid)}` }] } } });
+      const mine = db.doc(`assetmine/${uid}`), ms = await mine.get(); const row = { [aid]: { type: it.type, name: it.name, serial: it.serial, value: it.value, since: S.today } };
+      if (ms.exists) await mine.update({ items: row }); else await mine.set({ items: row });
+    }); toast(`Assigned to ${nameOf(uid)}. They'll be asked to acknowledge it.`);
+  } catch { toast("Couldn't assign."); }
+}
+async function returnAsset(aid, cond, fine){
+  const it = S.assetReg[aid]; if (!it || !it.holder) return; const uid = it.holder;
+  try {
+    await enqueue(async () => {
+      await db.doc("assetreg/main").update({ items: { [aid]: { holder: null, since: null, cond, history: [...(it.history || []), { at: Date.now(), by: S.uid, what: `Returned by ${nameOf(uid)} · ${cond}${fine ? " · recovery " + inr(fine) : ""}` }] } } });
+      const mine = db.doc(`assetmine/${uid}`), ms = await mine.get(); if (ms.exists) { const items = { ...((ms.data() || {}).items || {}) }; delete items[aid]; await mine.set({ ...(ms.data() || {}), items }); }
+      if (fine > 0) { const lid = "as" + newId(), next = shiftYM(ymOf(S.today), 1); const ref = db.doc(`loans/${uid}`), ls = await ref.get(); const row = { [lid]: { kind:"asset", label:`${it.type} ${it.name} (${cond})`, amount: fine, months: 1, emi: fine, startYM: next, approvedBy: S.uid, approvedAt: Date.now(), paid: {} } };
+        if (ls.exists) await ref.update({ items: row }); else await ref.set({ items: row }); }
+    }); toast(fine > 0 ? `Returned. ${inr(fine)} will be recovered from ${nameOf(uid)}'s next salary (or F&F).` : "Returned to stock");
+  } catch { toast("Couldn't record the return."); }
+}
+function renderAssets(){
+  const v = $("#v-assets"); if (!v || v.hidden) return;
+  if (v.contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName) && document.activeElement.closest("tbody")) return;
+  const all = Object.entries(S.assetReg).sort((a, b) => (a[1].type + a[1].name).localeCompare(b[1].type + b[1].name)), editable = S.admin;
+  const out = all.filter(([, x]) => x.holder).length;
+  $("#asCounts").replaceChildren(h("span", { class:"pill c-office", text:`${out} assigned` }), h("span", { class:"pill", text:`${all.length - out} in stock` }), h("span", { class:"pill", text:`Value ${inr(all.reduce((a, [, x]) => a + (Number(x.value) || 0), 0))}` }));
+  $("#asAdd").disabled = !editable;
+  $("#asBody").replaceChildren(...(all.length ? all.map(([aid, x]) => {
+    const ack = x.holder && (S.assetAck[x.holder] || {})[aid];
+    const who = h("select", { style:"width:auto;padding:5px 8px;font-size:12px" }, h("option", { value:"", text:"Assign to…" }), ...teamIds().filter(id => !person(id).exited).map(id => h("option", { value:id, text: nameOf(id) })));
+    const cond = h("select", { style:"width:auto;padding:5px 8px;font-size:12px" }, ...["Good", "Damaged", "Lost"].map(c => h("option", { text:c }))), fine = h("input", { type:"number", min:"0", placeholder:"Recovery ₹", style:"width:110px;padding:5px 8px;font-size:12px" });
+    return h("tr", null, h("td", null, h("b", { text: x.name }), h("div", { class:"meta", text: x.type + (x.cond ? " · " + x.cond : "") })), h("td", { text: x.serial || "—" }), h("td", { text: x.value ? inr(x.value) : "—" }),
+      h("td", { text: x.holder ? nameOf(x.holder) : "In stock" }), h("td", { text: x.since ? dLabel(x.since) : "—" }), h("td", null, x.holder ? h("span", { class:"pill " + (ack ? "c-approved" : "c-pending"), text: ack ? "Yes" : "Waiting" }) : "—"),
+      h("td", { style:"text-align:left" }, !editable ? null : x.holder ? h("div", { class:"row", style:"gap:6px;flex-wrap:nowrap" }, cond, fine, h("button", { class:"btn sm", type:"button", onclick: () => returnAsset(aid, cond.value, Number(fine.value) || 0), text:"Mark returned" }))
+        : h("div", { class:"row", style:"gap:6px;flex-wrap:nowrap" }, who, h("button", { class:"btn sm", type:"button", onclick: () => assignAsset(aid, who.value), text:"Assign" }))));
+  }) : [h("tr", null, h("td", { colspan:"7", class:"muted", text:"No assets yet. Add laptops, phones, ID cards and keys above." }))]));
+}
+function renderMyAssets(){
+  const pan = $("#myAssetsPanel"); if (!pan) return; const items = Object.entries(S.myAssets || {}); pan.hidden = !items.length; if (!items.length) return;
+  $("#myAssets").replaceChildren(...items.map(([aid, x]) => { const ack = (S.myAssetAck || {})[aid];
+    return h("div", { class:"item" }, h("div", { style:"flex:1;min-width:0" }, h("b", { text:`${x.type}: ${x.name}` }), h("div", { class:"meta", text:`${x.serial ? "Serial " + x.serial + " · " : ""}with you since ${dLong(x.since)}${x.value ? " · value " + inr(x.value) : ""}` })),
+      ack ? h("span", { class:"pill c-approved", text:"Acknowledged" }) : h("button", { class:"btn sm primary", type:"button", onclick: async () => { try { await upsert(`assetack/${S.uid}`, { [aid]: Date.now() }, Object.keys(S.myAssetAck || {}).length > 0); toast("Thanks, acknowledged"); } catch { toast("Couldn't save."); } }, text:"I have it" })); }));
+}
+// =====================================================================================
+// HELP DESK (tickets/<uid> · items:{ tid:{ cat, subject, status, at, thread:[{ by, at, text, file }] } })
+// =====================================================================================
+async function sendTicket(){
+  const subj = $("#tkSubject").value.trim(), body = $("#tkBody").value.trim();
+  if (!subj || !body) { toast("Add a subject and the details."); return; }
+  const tid = newId(), it = { cat: $("#tkCat").value, subject: subj.slice(0, 120), status:"open", at: Date.now(), thread: [{ by: S.uid, at: Date.now(), text: body.slice(0, 2000), ...(S.tkFileUp ? { file: S.tkFileUp } : {}) }] };
+  try { await upsert(`tickets/${S.uid}`, { items: { [tid]: it } }, Object.keys(S.myTickets).length > 0); $("#tkSubject").value = $("#tkBody").value = ""; S.tkFileUp = null; $("#tkFile").textContent = ""; toast("Ticket sent. You'll see the answer here."); } catch { toast("Couldn't send."); }
+}
+async function replyTicket(uid, tid, text, status){
+  const src = canCirculate() ? (S.tickets[uid] || {}) : S.myTicketsDoc || {}, it = ((src.items || {})[tid]) || {};
+  const thread = [...(it.thread || []), ...(text ? [{ by: S.uid, at: Date.now(), text: text.slice(0, 2000) }] : [])];
+  const st = status || (text ? (uid === S.uid && !canCirculate() ? "open" : uid === S.uid ? "open" : "answered") : it.status);
+  try { await enqueue(() => db.doc(`tickets/${uid}`).update({ items: { [tid]: { thread, status: st, upd: Date.now() } } })); toast(status === "closed" ? "Closed" : "Sent"); } catch { toast("Couldn't save."); }
+}
+const TKST = { open:["Open","c-pending"], answered:["Answered","c-office"], closed:["Closed","c-approved"] };
+function renderHelp(){
+  const v = $("#v-help"); if (!v || v.hidden) return;
+  if (v.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  const ceo = canCirculate();
+  const rows = ceo ? Object.entries(S.tickets).flatMap(([uid, d]) => Object.entries((d && d.items) || {}).map(([tid, t]) => ({ uid, tid, t }))) : Object.entries(S.myTickets || {}).map(([tid, t]) => ({ uid: S.uid, tid, t }));
+  rows.sort((a, b) => (b.t.upd || b.t.at) - (a.t.upd || a.t.at));
+  $("#tkEyebrow").textContent = ceo ? "Everyone's tickets · only you and the person can see them" : "Your tickets · only you and the CEO can see them";
+  const counts = k => rows.filter(r => k === "all" || r.t.status === k).length;
+  $("#tkFilter").replaceChildren(...[["open", "Open"], ["answered", "Answered"], ["closed", "Closed"], ["all", "All"]].map(([k, l]) => h("button", { class:"chipbtn", type:"button", "aria-pressed": String(S.tkFilter === k), onclick: () => { S.tkFilter = k; renderHelp(); }, text:`${l} ${counts(k)}` })));
+  const list = rows.filter(r => S.tkFilter === "all" || r.t.status === S.tkFilter);
+  $("#tkList").replaceChildren(...(list.length ? list.map(({ uid, tid, t }) => { const st = TKST[t.status] || TKST.open, box = h("textarea", { rows:"2", placeholder:"Write a reply", style:"width:100%" });
+    return h("details", { class:"lcard" }, h("summary", { style:"cursor:pointer;list-style:none" }, h("div", { class:"lhead" }, h("div", null, h("div", { class:"lname", text: t.subject }), h("div", { class:"lsub", text:`${ceo ? nameOf(uid) + " · " : ""}${t.cat} · ${dLabel(ymd(new Date(t.at)))} · ${(t.thread || []).length} message${(t.thread || []).length === 1 ? "" : "s"}` })), h("span", { class:"pill " + st[1], text: st[0] }))),
+      h("div", { class:"stack", style:"gap:8px;margin-top:10px" }, ...(t.thread || []).map(m => h("div", { style:`padding:10px 12px;border-radius:10px;background:${m.by === uid ? "var(--sunk)" : "var(--wfh-bg)"}` }, h("div", { class:"meta", text:`${m.by === S.uid ? "You" : nameOf(m.by)} · ${new Date(m.at).toLocaleString("en-IN")}` }), h("div", { style:"white-space:pre-line;font-size:13.5px", text: m.text }), m.file ? h("a", { href: m.file, target:"_blank", rel:"noopener", text:"Attachment" }) : null)),
+        t.status !== "closed" ? h("div", { class:"stack", style:"gap:6px" }, box, h("div", { class:"row" }, h("button", { class:"btn sm primary", type:"button", onclick: () => { if (box.value.trim()) replyTicket(uid, tid, box.value.trim()); }, text:"Reply" }), h("button", { class:"btn sm", type:"button", onclick: () => replyTicket(uid, tid, box.value.trim(), "closed"), text: box.value ? "Reply and close" : "Close ticket" })))
+          : h("button", { class:"btn sm", type:"button", onclick: () => replyTicket(uid, tid, "", "open"), text:"Reopen" }))); })
+    : [h("div", { class:"empty", text: S.tkFilter === "open" ? "No open tickets." : "Nothing here." })]));
+}
+// =====================================================================================
+// LOANS & ADVANCES (loanreq/<uid> requests · loans/<uid> approved, EMIs recovered in the pay run)
+// =====================================================================================
+function loanBal(l){ const paid = Object.values(l.paid || {}).reduce((a, x) => a + (Number(x) || 0), 0); return Math.max(0, (Number(l.amount) || 0) - paid); }
+function loanDues(id, ym){
+  const d = (id === S.uid && !(canCirculate() || S.finance) ? { items: S.myLoanAct } : S.loanAct[id]) || {}, out = [];
+  for (const [lid, l] of Object.entries(d.items || {})) { if (!l.startYM || l.startYM > ym || l.closed) continue; if ((l.paid || {})[ym] != null) { out.push({ lid, amt: Number(l.paid[ym]) || 0, label: l.label || (l.kind === "advance" ? "Salary advance" : "Loan") }); continue; }
+    const bal = loanBal(l); if (bal > 0) out.push({ lid, amt: Math.min(bal, Number(l.emi) || bal), label: l.label || (l.kind === "advance" ? "Salary advance" : "Loan") }); }
+  return out;
+}
+async function requestLoan(){
+  const amt = Number($("#lnAmt").value) || 0, months = Number($("#lnMonths").value) || 1, why = $("#lnWhy").value.trim();
+  if (amt < 500) { toast("Enter an amount of at least ₹500."); return; } if (!why) { toast("Add the purpose."); return; }
+  const lid = newId();
+  try { await upsert(`loanreq/${S.uid}`, { items: { [lid]: { kind: $("#lnKind").value, amount: amt, months, purpose: why.slice(0, 200), at: Date.now(), status:"requested" } } }, Object.keys(S.myLoanReq).length > 0); $("#lnAmt").value = $("#lnWhy").value = ""; toast("Request sent to the CEO"); } catch { toast("Couldn't send."); }
+}
+async function decideLoan(uid, lid, ok, note, emiMonths){
+  const r = ((S.loanReq[uid] || {}).items || {})[lid]; if (!r) return;
+  try {
+    await enqueue(async () => {
+      await db.doc(`loanreq/${uid}`).update({ items: { [lid]: { status: ok ? "approved" : "rejected", note: note || "", by: S.uid, decidedAt: Date.now() } } });
+      if (ok) { const months = Number(emiMonths) || r.months || 1, start = shiftYM(ymOf(S.today), 1), ref = db.doc(`loans/${uid}`), ls = await ref.get(), row = { [lid]: { kind: r.kind, amount: r.amount, months, emi: Math.ceil(r.amount / months), startYM: start, purpose: r.purpose, approvedBy: S.uid, approvedAt: Date.now(), paid: {} } };
+        if (ls.exists) await ref.update({ items: row }); else await ref.set({ items: row }); }
+    }); toast(ok ? "Approved. EMIs start in next month's pay run." : "Rejected");
+  } catch { toast("Couldn't save."); }
+}
+function loanRow(uid, lid, l, who){
+  const bal = loanBal(l), paid = (Number(l.amount) || 0) - bal;
+  return h("div", { class:"item" }, h("div", { style:"flex:1;min-width:0" }, h("b", { text:`${who ? nameOf(uid) + " · " : ""}${l.label || (l.kind === "advance" ? "Salary advance" : l.kind === "asset" ? "Asset recovery" : "Loan")} ${inr(l.amount)}` }),
+    h("div", { class:"meta", text:`EMI ${inr(l.emi)} × ${l.months} from ${ymLabel(l.startYM)} · repaid ${inr(paid)} · balance ${inr(bal)}${l.purpose ? " · " + l.purpose : ""}` })), h("span", { class:"pill " + (bal ? "c-pending" : "c-approved"), text: bal ? "Repaying" : "Repaid" }));
+}
+function renderLoans(){
+  const v = $("#v-loans"); if (!v || v.hidden) return;
+  if (v.contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName)) return;
+  const reqs = Object.entries(S.myLoanReq || {}).sort((a, b) => b[1].at - a[1].at), act = Object.entries(S.myLoanAct || {});
+  $("#lnMine").replaceChildren(...(reqs.length || act.length ? [...act.map(([lid, l]) => loanRow(S.uid, lid, l)), ...reqs.filter(([lid, r]) => r.status !== "approved").map(([lid, r]) => h("div", { class:"item" }, h("div", { style:"flex:1" }, h("b", { text:`${r.kind === "advance" ? "Salary advance" : "Loan"} ${inr(r.amount)} over ${r.months} month${r.months > 1 ? "s" : ""}` }), h("div", { class:"meta", text:`${r.purpose} · asked ${dLabel(ymd(new Date(r.at)))}${r.note ? " · " + r.note : ""}` })), h("span", { class:"pill " + (r.status === "rejected" ? "c-absent" : "c-pending"), text: r.status === "rejected" ? "Not approved" : "Waiting for the CEO" })))]
+    : [h("div", { class:"empty", text:"No loans or advances." })]));
+  const adm = canCirculate() || S.finance; $("#lnAdminPanel").hidden = !adm; if (!adm) return;
+  const pend = Object.entries(S.loanReq).flatMap(([uid, d]) => Object.entries((d && d.items) || {}).filter(([, r]) => r.status === "requested").map(([lid, r]) => ({ uid, lid, r })));
+  const active = Object.entries(S.loanAct).flatMap(([uid, d]) => Object.entries((d && d.items) || {}).map(([lid, l]) => ({ uid, lid, l }))).sort((a, b) => loanBal(b.l) - loanBal(a.l));
+  $("#lnAll").replaceChildren(...pend.map(({ uid, lid, r }) => { const m = h("select", { style:"width:auto" }, ...Array.from({ length: 12 }, (_, i) => h("option", { value: i + 1, selected: i + 1 === r.months, text:`${i + 1} EMI${i ? "s" : ""}` }))), note = h("input", { placeholder:"Note (optional)", style:"flex:1;min-width:140px" });
+      return h("div", { class:"lcard" }, h("div", { class:"lhead" }, h("div", null, h("div", { class:"lname", text:`${nameOf(uid)} · ${r.kind === "advance" ? "Salary advance" : "Loan"} ${inr(r.amount)}` }), h("div", { class:"lsub", text:`${r.purpose} · asked ${dLabel(ymd(new Date(r.at)))} · salary ${S.pay[uid] && S.pay[uid].salary ? inr(S.pay[uid].salary) : "—"}` })), h("span", { class:"pill c-pending", text:"Waiting" })),
+        canCirculate() ? h("div", { class:"lrow" }, m, note, h("button", { class:"btn sm good", type:"button", onclick: () => decideLoan(uid, lid, true, note.value, m.value), text:"Approve" }), h("button", { class:"btn sm bad", type:"button", onclick: () => decideLoan(uid, lid, false, note.value), text:"Reject" })) : h("div", { class:"meta", text:"The CEO approves." })); }),
+    ...active.map(({ uid, lid, l }) => loanRow(uid, lid, l, true)), ...(pend.length || active.length ? [] : [h("div", { class:"empty", text:"No requests or active loans." })]));
+}
+// =====================================================================================
+// GOALS (goals/<uid> items:{ gid:{ q, title, measure, weight, due, progress, status, mgrNote } })
+// =====================================================================================
+Object.assign(S, { myGoals:{}, teamGoals:{}, goalQ:null, myFbReq:{}, fbDone:{}, fbSubject:null, fbAgg:null, calib:{}, calibLoaded:false, kudos:{}, polls:{}, myVotes:{}, pollRes:{} });
+const qOf = ds => ds.slice(0, 4) + "-Q" + Math.ceil(+ds.slice(5, 7) / 3);
+function goalQs(){ const out = []; let d = S.today; for (let i = 0; i < 5; i++) { const q = qOf(d); if (!out.includes(q)) out.push(q); d = addDays(d, -92); } return out; }
+function renderGoals(){
+  const pan = $("#goalPanel"); if (!pan || $("#v-perf").hidden) return;
+  if (pan.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.id !== "goalQ") return;
+  const qs = goalQs(); if (!S.goalQ) S.goalQ = qs[0];
+  $("#goalQ").replaceChildren(...qs.map(q => h("option", { value:q, selected: q === S.goalQ, text: q.replace("-", " ") })));
+  const mine = Object.entries(S.myGoals).filter(([, g]) => g.q === S.goalQ), wsum = mine.reduce((a, [, g]) => a + (Number(g.weight) || 0), 0);
+  const row = (uid, gid, g, own) => h("div", { class:"item", style:"flex-wrap:wrap;gap:8px" }, h("div", { style:"flex:1;min-width:220px" }, h("b", { text: g.title }), h("div", { class:"meta", text:[g.measure, g.weight ? g.weight + "%" : "", g.due ? "due " + dLabel(g.due) : ""].filter(Boolean).join(" · ") }), g.mgrNote ? h("div", { class:"meta", text:`Manager: ${g.mgrNote}` }) : null),
+    h("label", { class:"meta", style:"display:flex;gap:6px;align-items:center" }, "Progress", h("input", { type:"range", min:"0", max:"100", step:"10", value: g.progress || 0, disabled: !own, onchange: e => saveGoal(uid, gid, { progress: Number(e.target.value), status: Number(e.target.value) >= 100 ? "done" : "on track" }) }), h("b", { text:`${g.progress || 0}%` })),
+    own ? h("button", { class:"btn sm bad", type:"button", onclick: () => saveGoal(uid, gid, null), text:"Remove" }) : h("input", { placeholder:"Comment", value: g.mgrNote || "", style:"width:200px;font-size:12px;padding:5px 8px", onchange: e => saveGoal(uid, gid, { mgrNote: e.target.value.slice(0, 200) }) }));
+  $("#goalList").replaceChildren(...(mine.length ? [...mine.map(([gid, g]) => row(S.uid, gid, g, true)), wsum && wsum !== 100 ? h("div", { class:"meta", text:`Weights add up to ${wsum}%; aim for 100%.` }) : null].filter(Boolean) : [h("div", { class:"empty", text:"No goals for this quarter yet. Add 3–5 that support your KRAs." })]));
+  const team = canSeeTeam() ? scopeIds().filter(id => id !== S.uid) : [];
+  const tg = $("#goalTeam"); tg.hidden = !team.length; if (!team.length) return;
+  tg.replaceChildren(h("div", null, h("span", { class:"eyebrow", text:"Your team's goals this quarter" })), ...team.map(id => { const gs = Object.entries(((S.teamGoals[id] || {}).items) || {}).filter(([, g]) => g.q === S.goalQ); const avg = gs.length ? Math.round(gs.reduce((a, [, g]) => a + (g.progress || 0), 0) / gs.length) : null;
+    return h("details", { class:"lcard" }, h("summary", { style:"cursor:pointer" }, h("b", { text: nameOf(id) }), h("span", { class:"meta", text:` · ${gs.length} goal${gs.length === 1 ? "" : "s"}${avg != null ? ` · ${avg}% average progress` : ""}` })), ...(gs.length ? gs.map(([gid, g]) => row(id, gid, g, false)) : [h("div", { class:"meta", text:"No goals set." })])); }));
+}
+async function saveGoal(uid, gid, patch){
+  const ref = db.doc(`goals/${uid}`), mine = uid === S.uid, cur = mine ? S.myGoals : (((S.teamGoals[uid] || {}).items) || {});
+  try { await enqueue(async () => { if (patch === null) { const items = { ...cur }; delete items[gid]; await ref.set({ items }); } else { const s0 = await ref.get(); if (s0.exists) await ref.update({ items: { [gid]: patch } }); else await ref.set({ items: { [gid]: patch } }); } }); }
+  catch { toast("Couldn't save the goal."); }
+}
+async function addGoal(){
+  const t = $("#goalTitle").value.trim(); if (!t) { toast("Write the goal."); return; }
+  await saveGoal(S.uid, newId(), { q: S.goalQ, title: t.slice(0, 140), measure: $("#goalMeasure").value.trim().slice(0, 120), weight: Number($("#goalWeight").value) || 0, due: $("#goalDue").value, progress: 0, status:"on track", at: Date.now() });
+  ["#goalTitle","#goalMeasure","#goalWeight","#goalDue"].forEach(k => $(k).value = ""); toast("Goal added");
+}
+// =====================================================================================
+// 360° FEEDBACK (fbreq/<reviewer> items · answers fbans/<subject>/r/<reviewer>; the subject never reads raw answers)
+// =====================================================================================
+const COMP = [["quality","Quality of work"],["comm","Communication"],["team","Teamwork"],["own","Ownership"],["client","Client focus"]];
+async function loadFbDone(){ const reqs = Object.entries(S.myFbReq); for (const [rid, r] of reqs) { if (S.fbDone[rid] != null) continue; try { const d = await db.doc(`fbans/${r.subject}/r/${S.uid}`).get(); S.fbDone[rid] = !!(d.data() && d.data()[rid]); } catch { S.fbDone[rid] = false; } } renderFeedback(); navBadges(); }
+function renderFeedback(){
+  const pan = $("#fbPanel"); if (!pan || $("#v-perf").hidden) return;
+  if (pan.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const ask = $("#fbAsk"), lead = canSeeTeam(); ask.hidden = !lead;
+  if (lead && !ask.children.length) {
+    const who = h("select", { style:"width:auto" }, h("option", { value:"", text:"Feedback about…" }), ...scopeIds().filter(id => id !== S.uid).map(id => h("option", { value:id, text: nameOf(id) })));
+    const box = h("div", { class:"row", style:"gap:10px" }, ...teamIds().map(id => h("label", { class:"chk" }, h("input", { type:"checkbox", value:id }), nameOf(id))));
+    const due = h("input", { type:"date", value: addDays(S.today, 7) });
+    ask.append(h("span", { class:"eyebrow", text:"Ask for feedback · pick 3–6 colleagues who work with them" }), h("div", { class:"lrow" }, who, h("span", { class:"meta", text:"due" }), due, h("button", { class:"btn sm primary", type:"button", onclick: async () => {
+      const subj = who.value, revs = [...box.querySelectorAll("input:checked")].map(x => x.value).filter(x => x !== subj);
+      if (!subj || revs.length < 2) { toast("Pick the person and at least 2 reviewers."); return; }
+      const rid = newId(); try { await enqueue(async () => { for (const r of revs) { const ref = db.doc(`fbreq/${r}`), s0 = await ref.get(), row = { [rid]: { subject: subj, due: due.value, by: S.uid, at: Date.now() } }; if (s0.exists) await ref.update({ items: row }); else await ref.set({ items: row }); } }); toast(`Asked ${revs.length} people for feedback about ${nameOf(subj)}`); box.querySelectorAll("input").forEach(x => x.checked = false); }
+      catch { toast("Couldn't send the requests."); } }, text:"Send requests" }), h("button", { class:"btn sm", type:"button", onclick: () => { if (who.value) loadFbSummary(who.value); else toast("Pick the person first."); }, text:"See results" })), box);
+  }
+  const reqs = Object.entries(S.myFbReq).sort((a, b) => b[1].at - a[1].at);
+  $("#fbMine").replaceChildren(...(reqs.length ? reqs.map(([rid, r]) => { const done = S.fbDone[rid];
+    if (done) return h("div", { class:"item" }, h("div", { style:"flex:1" }, h("b", { text:`Feedback about ${nameOf(r.subject)}` }), h("div", { class:"meta", text:"Sent. Thank you." })), h("span", { class:"pill c-approved", text:"Done" }));
+    const sel = {}; const keep = h("textarea", { rows:"2", placeholder:"Keep doing…" }), imp = h("textarea", { rows:"2", placeholder:"Could do better at…" });
+    return h("details", { class:"lcard" }, h("summary", { style:"cursor:pointer" }, h("b", { text:`Feedback about ${nameOf(r.subject)}` }), h("span", { class:"meta", text:` · due ${dLabel(r.due)} · anonymous` })),
+      h("div", { class:"stack", style:"gap:8px;margin-top:8px" }, ...COMP.map(([k, l]) => h("div", { class:"lrow" }, h("span", { style:"width:150px;font-size:13px", text:l }), (sel[k] = h("select", { style:"width:auto" }, h("option", { value:"", text:"Rate 1–5" }), ...[5, 4, 3, 2, 1].map(v => h("option", { value:v, text:`${v} · ${["","Needs work","Below expectations","Meets","Strong","Outstanding"][v]}` })))))),
+        keep, imp, h("div", null, h("button", { class:"btn sm primary", type:"button", onclick: async () => { const rt = Object.fromEntries(COMP.map(([k]) => [k, Number(sel[k].value) || 0])); if (Object.values(rt).some(v => !v)) { toast("Rate all five."); return; }
+          try { const ref = db.doc(`fbans/${r.subject}/r/${S.uid}`), s0 = await ref.get(), row = { [rid]: { r: rt, keep: keep.value.trim().slice(0, 600), improve: imp.value.trim().slice(0, 600), at: Date.now() } }; await enqueue(() => s0.exists ? ref.update(row) : ref.set(row)); S.fbDone[rid] = true; renderFeedback(); toast("Feedback sent anonymously"); } catch { toast("Couldn't send."); } }, text:"Send feedback" })))); })
+    : [h("div", { class:"empty", text:"No feedback requests for you." })]));
+  const sm = $("#fbSummary"); sm.hidden = !S.fbAgg; if (S.fbAgg) { const a = S.fbAgg;
+    sm.replaceChildren(h("span", { class:"eyebrow", text:`360° results for ${nameOf(a.subject)} · ${a.n} response${a.n === 1 ? "" : "s"} · names hidden` }), h("div", { class:"stats" }, ...COMP.map(([k, l]) => h("div", { class:"stat" }, h("b", { text: a.avg[k] ? a.avg[k].toFixed(1) : "—" }), h("span", { text:l })))),
+      ...(a.keep.length ? [h("b", { style:"font-size:13px", text:"Keep doing" }), ...a.keep.map(t => h("div", { class:"meta", text:"• " + t }))] : []), ...(a.improve.length ? [h("b", { style:"font-size:13px", text:"Could do better" }), ...a.improve.map(t => h("div", { class:"meta", text:"• " + t }))] : [])); }
+}
+async function loadFbSummary(subject){
+  try { const qs = await db.collection(`fbans/${subject}/r`).get(); const all = []; for (const d of qs.docs) for (const v of Object.values(d.data() || {})) all.push(v);
+    const avg = Object.fromEntries(COMP.map(([k]) => [k, all.length ? all.reduce((a, x) => a + (x.r[k] || 0), 0) / all.length : 0]));
+    const shuffle = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(x => x[1]);
+    S.fbAgg = { subject, n: all.length, avg, keep: shuffle(all.map(x => x.keep).filter(Boolean)), improve: shuffle(all.map(x => x.improve).filter(Boolean)) }; S.fbAvg = S.fbAvg || {}; S.fbAvg[subject] = all.length ? mean(Object.values(avg)) : null; renderFeedback(); renderCalib();
+    if (!all.length) toast("No responses yet.");
+  } catch { toast("Couldn't load the feedback."); }
+}
+// =====================================================================================
+// CALIBRATION + APPRAISAL LETTER (calib/<period> · CEO only)
+// =====================================================================================
+function renderCalib(){
+  const pan = $("#calPanel"); if (!pan) return; pan.hidden = !(S.owner || S.hr) || $("#v-perf").hidden; if (pan.hidden) return;
+  if (pan.contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName)) return;
+  const pk = S.pfPeriod, ids = teamIds().filter(id => id !== S.uid && sheetOf(id) && !person(id).exited), cal = (S.calib[pk] || {}).r || {};
+  const sc = id => { const t = S.pfTeam[id]; if (!t || !t.rev) return null; const o = scoreOf(kraBlocks(sheetOf(id)), finalRatings(t.rev)).overall; return o || null; };
+  const dist = [1, 2, 3, 4, 5].map(v => ({ v, before: ids.filter(id => Math.round(sc(id) || 0) === v).length, after: ids.filter(id => Number((cal[id] || {}).v || Math.round(sc(id) || 0)) === v).length }));
+  $("#calDist").replaceChildren(h("span", { class:"meta", text:"Ratings spread (before → after):" }), ...dist.map(d => h("span", { class:"pill", text:`${d.v}: ${d.before} → ${d.after}` })));
+  $("#calBody").replaceChildren(...(ids.length ? ids.map(id => { const s0 = sc(id), c = cal[id] || {}, gs = Object.values(((S.teamGoals[id] || {}).items) || {}).filter(g => g.q === qOf(S.today)), gd = gs.length ? `${gs.filter(g => (g.progress || 0) >= 100).length}/${gs.length}` : "—";
+      const pct = h("input", { type:"number", min:"0", max:"100", step:"0.5", placeholder:"Increment %", style:"width:100px;padding:5px 8px;font-size:12px" }), eff = h("input", { type:"date", value: S.today.slice(0, 8) + "01", style:"width:auto;padding:5px 8px;font-size:12px" });
+      return h("tr", null, h("td", null, h("b", { text: nameOf(id) }), h("div", { class:"meta", text: person(id).pos || "" })), h("td", { text: mgrOf(id) ? nameOf(mgrOf(id)) : "—" }), h("td", { text: s0 ? s0.toFixed(2) : "Not reviewed" }),
+        h("td", { text: S.fbAvg && S.fbAvg[id] != null ? S.fbAvg[id].toFixed(1) : "—" }), h("td", { text: gd }),
+        h("td", null, h("select", { style:"width:auto;padding:5px 8px;font-size:12px", onchange: e => saveCalib(id, { v: Number(e.target.value) || null }) }, h("option", { value:"", text: s0 ? `Keep ${Math.round(s0)}` : "—" }), ...[5, 4, 3, 2, 1].map(v => h("option", { value:v, selected: Number(c.v) === v, text:String(v) })))),
+        h("td", null, h("input", { value: c.note || "", placeholder:"Why", style:"width:160px;padding:5px 8px;font-size:12px", onchange: e => saveCalib(id, { note: e.target.value.slice(0, 200) }) })),
+        h("td", { style:"text-align:left" }, S.owner ? h("div", { class:"row", style:"gap:6px;flex-wrap:nowrap" }, pct, eff, busyBtn("ap_" + id, "Issue", () => { const p0 = Number(pct.value); if (!(p0 >= 0)) { toast("Enter the increment %."); return; } return srv({ op:"appraisal", uid:id, pct:p0, effective: eff.value, rating: Number(c.v) || (s0 ? Math.round(s0) : 0), cycle: pk }, r => `Appraisal letter sent · new salary ${inr(r.newCtc)} from ${dLong(r.effective)}`, "ap_" + id); })) : h("span", { class:"meta", text:"CEO" })));
+    }) : [h("tr", null, h("td", { colspan:"8", class:"muted", text:"No one with a KRA sheet yet." }))]));
+}
+async function saveCalib(id, patch){ const pk = S.pfPeriod, ref = db.doc(`calib/${pk}`); try { await enqueue(async () => { const s0 = await ref.get(), row = { r: { [id]: { ...patch, by: S.uid, at: Date.now() } } }; if (s0.exists) await ref.update(row); else await ref.set(row); }); S.calib[pk] = merge2(S.calib[pk] || {}, { r: { [id]: patch } }); renderCalib(); } catch { toast("Couldn't save."); } }
+function merge2(a, b){ if (a && b && typeof a === "object" && typeof b === "object" && !Array.isArray(a)) { const o = { ...a }; for (const k of Object.keys(b)) o[k] = merge2(a[k], b[k]); return o; } return b; }
+// salary revisions written by the appraisal letter: pay/<uid>.revisions { "YYYY-MM": amount }
+function salaryFor(pay, ym){ const rv = Object.entries((pay && pay.revisions) || {}).filter(([k]) => k <= ym).sort((a, b) => a[0].localeCompare(b[0])).pop(); return rv ? Number(rv[1]) || 0 : Number(pay && pay.salary) || 0; }
+// =====================================================================================
+// ENGAGE: kudos (kudos/<giver>), polls (polls/<pid>), votes (votes/<uid>, anonymous totals via poll_results)
+// =====================================================================================
+async function sendKudos(){
+  const to = $("#kdTo").value, msg = $("#kdMsg").value.trim(); if (!to || !msg) { toast("Pick someone and write a message."); return; } if (to === S.uid) { toast("Pick a colleague."); return; }
+  try { await upsert(`kudos/${S.uid}`, { items: { [newId()]: { to, val: $("#kdVal").value, msg: msg.slice(0, 240), at: Date.now() } } }, !!S.kudos[S.uid]); $("#kdMsg").value = ""; toast(`Kudos sent to ${nameOf(to)}`); } catch { toast("Couldn't send."); }
+}
+async function loadPollResults(){ if (!drv || !drv.rpc) return; for (const pid of Object.keys(S.polls)) { try { S.pollRes[pid] = await drv.rpc("poll_results", { p_pid: pid }); } catch {} } renderEngage(); }
+async function vote(pid, v, c){ try { await upsert(`votes/${S.uid}`, { [pid]: { v: String(v), ...(c ? { c: c.slice(0, 400) } : {}), at: Date.now() } }, Object.keys(S.myVotes).length > 0); S.myVotes[pid] = { v: String(v) }; toast("Thanks, your answer is anonymous"); loadPollResults(); } catch { toast("Couldn't save your answer."); } }
+function renderEngage(){
+  const v = $("#v-engage"); if (!v || v.hidden) return;
+  if (v.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const kt = $("#kdTo"); kt.replaceChildren(h("option", { value:"", text:"Pick a colleague" }), ...teamIds().filter(id => id !== S.uid && !person(id).exited).map(id => h("option", { value:id, text: nameOf(id) })));
+  const all = Object.entries(S.kudos).flatMap(([from, d]) => Object.values((d && d.items) || {}).map(k => ({ from, ...k }))).sort((a, b) => b.at - a.at);
+  $("#kdFeed").replaceChildren(...(all.length ? all.slice(0, 60).map(k => h("div", { class:"item" }, avatar(k.to), h("div", { style:"flex:1;min-width:0" }, h("div", null, h("b", { text: nameOf(k.to) }), h("span", { class:"meta", text:` · ${k.val} · from ${nameOf(k.from)} · ${dLabel(ymd(new Date(k.at)))}` })), h("div", { style:"font-size:13.5px", text: k.msg }))))
+    : [h("div", { class:"empty", text:"No kudos yet. Be the first to thank someone." })]));
+  const ym = ymOf(S.today), cnt = {}; for (const k of all) if (ymOf(ymd(new Date(k.at))) === ym) cnt[k.to] = (cnt[k.to] || 0) + 1;
+  $("#kdTop").replaceChildren(...(Object.keys(cnt).length ? Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, n]) => h("span", { class:"pill c-office", text:`${nameOf(id)} · ${n}` })) : [h("span", { class:"meta", text:"No kudos this month yet." })]));
+  $("#plNewBtn").hidden = !S.admin;
+  const polls = Object.entries(S.polls).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
+  $("#plList").replaceChildren(...(polls.length ? polls.map(([pid, p0]) => { const closed = p0.closes && p0.closes < S.today, mine = S.myVotes[pid], res = S.pollRes[pid], counts = (res && res.counts) || {}, total = Object.values(counts).reduce((a, x) => a + x, 0);
+      const opts = p0.enps ? Array.from({ length: 11 }, (_, i) => String(i)) : p0.options || [];
+      let score = null; if (p0.enps && total) { const pr = opts.filter(o => +o >= 9).reduce((a, o) => a + (counts[o] || 0), 0), de = opts.filter(o => +o <= 6).reduce((a, o) => a + (counts[o] || 0), 0); score = Math.round((pr - de) / total * 100); }
+      const com = h("input", { placeholder:"Anything to add? (optional, anonymous)", style:"width:100%" });
+      return h("div", { class:"lcard" }, h("div", { class:"lhead" }, h("div", null, h("div", { class:"lname", text: p0.q }), h("div", { class:"lsub", text:`${p0.enps ? "eNPS pulse · " : ""}${total} answer${total === 1 ? "" : "s"}${p0.closes ? ` · ${closed ? "closed" : "closes"} ${dLabel(p0.closes)}` : ""}` })), score != null ? h("span", { class:"pill c-office", text:`eNPS ${score > 0 ? "+" : ""}${score}` }) : null),
+        mine || closed ? h("div", { class:"stack", style:"gap:4px" }, ...opts.map(o => { const n = counts[o] || 0, pc = total ? Math.round(n / total * 100) : 0; return h("div", { class:"row", style:"gap:8px;flex-wrap:nowrap" }, h("span", { style:"width:110px;font-size:12.5px", text: o + (mine && mine.v === o ? " (you)" : "") }), h("div", { style:`height:8px;border-radius:4px;background:var(--role);width:${Math.max(2, pc * 2)}px` }), h("span", { class:"meta", text:`${pc}%` })); }),
+            S.owner && res && res.comments && res.comments.length ? h("details", null, h("summary", { class:"meta", style:"cursor:pointer", text:`${res.comments.length} anonymous comment${res.comments.length === 1 ? "" : "s"}` }), ...res.comments.map(c => h("div", { class:"meta", text:"• " + c }))) : null)
+          : h("div", { class:"stack", style:"gap:6px" }, h("div", { class:"row", style:"gap:6px" }, ...opts.map(o => h("button", { class:"btn sm", type:"button", onclick: () => vote(pid, o, com.value.trim()), text:o }))), p0.enps ? com : null)); })
+    : [h("div", { class:"empty", text:"No polls right now." })]));
+}
+async function createPoll(){
+  const q = $("#plQ").value.trim(), enps = $("#plEnps").checked, opts = $("#plOpts").value.split(",").map(x => x.trim()).filter(Boolean).slice(0, 8);
+  if (!enps && (!q || opts.length < 2)) { toast("Add the question and at least two options."); return; }
+  try { await enqueue(() => db.doc(`polls/${newId()}`).set({ q: enps ? (q || "How likely are you to recommend Atraski as a place to work? (0–10)") : q.slice(0, 160), options: enps ? [] : opts, enps, closes: $("#plClose").value, by: S.uid, at: Date.now() })); $("#plQ").value = $("#plOpts").value = ""; $("#plEnps").checked = false; $("#plNew").hidden = true; toast("Poll published"); } catch { toast("Couldn't publish."); }
+}
+// =====================================================================================
+// REPORT BUILDER
+// =====================================================================================
+const RB = {
+  people: { label:"People", rows: () => teamIds().map(id => { const p = person(id), ex = S.exits[id] || {}; return { Code: p.code || "", Name: nameOf(id), Company: companyOf(id), Department: p.dept || "", Position: p.pos || "", Type: ETYPE[etypeOf(id)] || "", Joined: joinOf(id) || "", Manager: mgrOf(id) ? nameOf(mgrOf(id)) : "", Office: baseOf(id) ? locName(baseOf(id), "", true) : "", Role: roleOf(id), "Probation ends": probEndOfP(id) || "", Confirmed: p.confirmed || "", "Exit stage": ex.stage || "", "Last working day": ex.lwd || "" }; }) },
+  attendance: { label:"Attendance summary (month)", month:true, rows: ym => teamIds().map(id => { const s0 = summarize(ym, (S.rpYM === ym ? S.rpDocs : S.prYM === ym ? S.prMonths : {})[id], id); return { Code: person(id).code || "", Name: nameOf(id), Department: person(id).dept || "", "Working days": s0.working, "Days worked": +num1(s0.worked), "Paid leave": +num1(s0.leave), LOP: +num1(s0.lwp), WFH: s0.wfh, "Late marks": s0.late, "Missed punches": s0.missed, "Short days": s0.debit || 0, Hours: +(s0.ms / 36e5).toFixed(1) }; }) },
+  requests: { label:"Leave, WFH & short leave requests", rows: () => teamIds().flatMap(id => reqList(rootOf(id), decOf(id)).map(r => ({ Code: person(id).code || "", Name: nameOf(id), Kind: r.kind, Type: r.type || "", From: r.from, To: r.to || r.from, Status: r.status, "Decided by": r.dec && r.dec.by ? (r.dec.by === "auto" ? "Auto" : nameOf(r.dec.by)) : "", Reason: r.reason || "" }))) },
+  claims: { label:"Travel claims", rows: () => teamIds().flatMap(id => tripsOf(id).map(t => ({ Code: person(id).code || "", Name: nameOf(id), Trip: `${t.from} → ${t.to}`, Client: t.client || "", Start: t.start, Status: tripState(id, t).label, Estimate: Number(t.est) || 0, Claimed: claimTotal(t) }))) },
+  assets: { label:"Assets", rows: () => Object.values(S.assetReg).map(x => ({ Type: x.type, Asset: x.name, Serial: x.serial || "", Value: Number(x.value) || 0, With: x.holder ? nameOf(x.holder) : "In stock", Since: x.since || "", Condition: x.cond || "" })) },
+  loans: { label:"Loans & advances", rows: () => Object.entries(S.loanAct).flatMap(([id, d]) => Object.values((d && d.items) || {}).map(l => ({ Name: nameOf(id), Kind: l.kind, Amount: Number(l.amount) || 0, EMI: Number(l.emi) || 0, From: l.startYM, Balance: loanBal(l) }))) },
+  tickets: { label:"Help desk tickets", rows: () => Object.entries(S.tickets).flatMap(([id, d]) => Object.values((d && d.items) || {}).map(t => ({ Name: nameOf(id), Topic: t.cat, Subject: t.subject, Status: t.status, Raised: ymd(new Date(t.at)), Messages: (t.thread || []).length }))) },
+  kudos: { label:"Kudos", rows: () => Object.entries(S.kudos).flatMap(([from, d]) => Object.values((d && d.items) || {}).map(k => ({ To: nameOf(k.to), From: nameOf(from), For: k.val, Message: k.msg, Date: ymd(new Date(k.at)) }))) },
+  payrun: { label:"Pay run (CEO)", month:true, owner:true, rows: ym => { const keep = S.prYM; S.prYM = ym; const out = payIds().map(payRow).filter(r => r.salary).map(r => ({ Code: r.code, Name: r.name, Salary: r.salary, "Paid days": +num1(r.paidDays), LOP: +num1(r.lop), Gross: r.gross, Recovery: r.recovery, Travel: r.travel, Incentive: r.incentive, Total: r.total, Status: r.status })); S.prYM = keep; return out; } },
+};
+S.rb = { set:"people", cols:null, out:null };
+function renderReports2(){
+  const v = $("#v-reports"); if (!v || v.hidden) return;
+  const sets = Object.entries(RB).filter(([, d]) => !d.owner || S.owner);
+  if (!$("#rbSet").options.length) { $("#rbSet").replaceChildren(...sets.map(([k, d]) => h("option", { value:k, text:d.label }))); $("#rbYM").value = ymOf(S.today); }
+  const d = RB[S.rb.set], sample = (d.rows(d.month ? $("#rbYM").value : null) || [])[0] || {};
+  $("#rbYM").disabled = !d.month;
+  const cols = Object.keys(sample); if (!S.rb.cols || S.rb.cols.some(c => !cols.includes(c))) S.rb.cols = cols.slice();
+  $("#rbCols").replaceChildren(...cols.map(c => h("label", { class:"chk" }, h("input", { type:"checkbox", checked: S.rb.cols.includes(c), onchange: e => { S.rb.cols = e.target.checked ? [...S.rb.cols, c] : S.rb.cols.filter(x => x !== c); } }), c)));
+  const g = $("#rbGroup"), sm = $("#rbSum"), gv = g.value, sv = sm.value;
+  g.replaceChildren(h("option", { value:"", text:"No grouping" }), ...cols.map(c => h("option", { value:c, text:c }))); g.value = cols.includes(gv) ? gv : "";
+  sm.replaceChildren(h("option", { value:"", text:"Count only" }), ...cols.filter(c => typeof sample[c] === "number").map(c => h("option", { value:c, text:c }))); sm.value = [...sm.options].some(o => o.value === sv) ? sv : "";
+}
+function runReport(){
+  const d = RB[S.rb.set], f = $("#rbFilter").value.trim().toLowerCase(), g = $("#rbGroup").value, sm = $("#rbSum").value;
+  let rows = d.rows(d.month ? $("#rbYM").value : null) || [];
+  if (f) rows = rows.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(f)));
+  let cols, data;
+  if (g) { const m = new Map(); for (const r of rows) { const k = String(r[g] ?? ""); const a = m.get(k) || { n: 0, s: 0 }; a.n++; if (sm) a.s += Number(r[sm]) || 0; m.set(k, a); }
+    cols = [g, "Count", ...(sm ? [`Total ${sm}`] : [])]; data = [...m.entries()].sort((a, b) => b[1].n - a[1].n).map(([k, a]) => [k, a.n, ...(sm ? [Math.round(a.s * 100) / 100] : [])]); }
+  else { cols = S.rb.cols.length ? S.rb.cols : Object.keys(rows[0] || {}); data = rows.map(r => cols.map(c => r[c] ?? "")); }
+  S.rb.out = { cols, data, name: `${d.label}${d.month ? " " + $("#rbYM").value : ""}` };
+  $("#rbHead").replaceChildren(h("tr", null, ...cols.map(c => h("th", { text:c }))));
+  $("#rbBody").replaceChildren(...(data.length ? data.slice(0, 300).map(r => h("tr", null, ...r.map(v => h("td", { style:"text-align:left", text: typeof v === "number" && Math.abs(v) >= 1000 ? v.toLocaleString("en-IN") : String(v) })))) : [h("tr", null, h("td", { colspan: String(cols.length || 1), class:"muted", text:"No rows." }))]));
+  $("#rbInfo").textContent = `${data.length} row${data.length === 1 ? "" : "s"}${data.length > 300 ? " (showing 300; the download has all)" : ""}`;
+}
+async function reportCsv(){ if (!S.rb.out) runReport(); const o = S.rb.out, esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`; if (!downloads) { toast("Downloads aren't available here."); return; }
+  try { await downloads.save({ filename: `atraski-${o.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`, data: [o.cols, ...o.data].map(r => r.map(esc).join(",")).join("\n") }); toast("Report saved"); } catch (e) { if (e && e.code !== "declined") toast("Couldn't save the file."); } }
+async function reportDrive(){ if (!S.owner) { toast("Only the CEO saves to Drive."); return; } if (!S.rb.out) runReport(); const o = S.rb.out; try { await drv.call({ op:"push", path:["Reports"], name: o.name, tabs:[{ name:"Report", rows:[o.cols, ...o.data] }] }); toast("Saved to Drive › Reports"); } catch (e) { toast("Drive: " + (e.message || e)); } }
 async function savePerson(id, patch){
   const cur = { ...person(id), ...patch };
   if (cur.manager === id) cur.manager = null;
@@ -2395,7 +2836,12 @@ function renderOrg(){
 // ---------- rendering: policy ----------
 let draftHol = null, draftOff = [], policyDirty = false;
 function renderOff(){
-  $("#oList").replaceChildren(...(draftOff.length ? draftOff.map((o, i) => h("div", { class:"item" }, h("b", { text: o.n }),
+  const hl = $("#hLoc"); if (hl) { const cur = hl.value; hl.replaceChildren(h("option", { value:"", text:"All offices" }), ...draftOff.map(o => h("option", { value:o.id, text: o.n.split(" · ")[0] + " only" }))); hl.value = cur; }
+  $("#oList").replaceChildren(...(draftOff.length ? draftOff.map((o, i) => h("div", { class:"item", style:"flex-wrap:wrap;gap:8px" }, h("div", { style:"flex:1;min-width:180px" }, h("b", { text: o.n }),
+      h("div", { class:"meta", text: o.lat != null ? `Geofence: ${o.lat.toFixed(5)}, ${o.lng.toFixed(5)} · ${o.r || 200} m radius` : "No location set: punch-ins here can't be checked" })),
+    h("button", { class:"btn sm", type:"button", onclick: () => { if (!navigator.geolocation) { toast("This device can't share its location."); return; } toast("Getting your location…");
+      navigator.geolocation.getCurrentPosition(pos => { o.lat = pos.coords.latitude; o.lng = pos.coords.longitude; o.r = o.r || 200; policyDirty = true; renderOff(); toast(`Office location set (±${Math.round(pos.coords.accuracy)} m). Save the policy.`); }, () => toast("Couldn't get your location. Allow location access and try again."), { enableHighAccuracy:true, timeout:15000 }); }, text: o.lat != null ? "Reset to where I am" : "Set to where I am" }),
+    h("label", { class:"meta", style:"display:flex;gap:6px;align-items:center" }, "Radius (m)", h("input", { type:"number", min:"50", max:"2000", step:"50", value: o.r || 200, style:"width:90px;padding:5px 8px", onchange: e => { o.r = Math.max(50, Number(e.target.value) || 200); policyDirty = true; } })),
     h("button", { class:"btn sm bad", type:"button", onclick: () => { draftOff.splice(i, 1); policyDirty = true; renderOff(); }, text:"Remove" })))
     : [h("div", { class:"empty", text:"No offices yet. Add each office so people can say where they punched in." })]));
 }
@@ -2407,7 +2853,7 @@ const getPath = (o, p) => p.split(".").reduce((a, k) => a && a[k], o);
 function fillPolicy(force){
   if (policyDirty && !force) return;
   for (const [sel, path] of POL_FIELDS) $(sel).value = getPath(P, path);
-  $("#pAltSat").checked = !!P.altSat;
+  $("#pAltSat").checked = !!P.altSat; $("#pGeo").value = P.geo || "record"; $("#pSelfie").checked = P.selfie !== false;
   $("#pWeek").replaceChildren(...DOW.map((d, i) => h("label", { class:"chk" }, h("input", { type:"checkbox", id:"pw" + i, checked: (P.weekOff||[]).includes(i) }), d)));
   $("#pWfh").replaceChildren(...DOW.map((d, i) => h("label", { class:"chk" }, h("input", { type:"checkbox", id:"pwf" + i, checked: (P.wfhDays||[]).includes(i) }), d)));
   draftHol = clone(P.holidays || []); renderHol();
@@ -2415,7 +2861,7 @@ function fillPolicy(force){
 }
 function renderHol(){
   draftHol.sort((a,b) => a.d.localeCompare(b.d));
-  $("#hList").replaceChildren(...(draftHol.length ? draftHol.map((x, i) => h("div", { class:"item" }, h("div", null, h("b", { text: x.n || "Holiday" }), h("div", { class:"meta", text: dLong(x.d) })),
+  $("#hList").replaceChildren(...(draftHol.length ? draftHol.map((x, i) => h("div", { class:"item" }, h("div", null, h("b", { text: x.n || "Holiday" }), h("div", { class:"meta", text: dLong(x.d) + " · " + (x.loc ? ((draftOff.find(o => o.id === x.loc) || {}).n || x.loc).split(" · ")[0] + " only" : "All offices") })),
     h("button", { class:"btn sm bad", type:"button", onclick: () => { draftHol.splice(i, 1); policyDirty = true; renderHol(); }, text:"Remove" })))
     : [h("div", { class:"empty", text:"No holidays added. Add each office holiday so it isn't counted as a working day." })]));
 }
@@ -2428,7 +2874,7 @@ async function savePolicy(){
   }
   np.weekOff = DOW.map((_, i) => i).filter(i => $("#pw" + i).checked);
   np.wfhDays = DOW.map((_, i) => i).filter(i => $("#pwf" + i).checked);
-  np.altSat = $("#pAltSat").checked; np.holidays = draftHol; np.offices = draftOff; np.updatedAt = Date.now();
+  np.altSat = $("#pAltSat").checked; np.geo = $("#pGeo").value; np.selfie = $("#pSelfie").checked; np.holidays = draftHol; np.offices = draftOff; np.updatedAt = Date.now();
   if (np.halfHours > np.fullHours) { $("#pMsg").textContent = "Half-day hours can't be more than full-day hours."; return; }
   try { await db.doc("config/policy").set(np); policyDirty = false; $("#pMsg").textContent = ""; toast("Policy saved"); }
   catch (e) { $("#pMsg").textContent = "Couldn't save. Only admins can change the policy."; }
@@ -2439,8 +2885,47 @@ const rootRef = () => db.doc(`att/${S.uid}`);
 const monthRef = ds => db.doc(`att/${S.uid}/months/${ymOf(ds)}`);
 function onWriteErr(e){ if (e && e.code === "invalid_argument") { S.readOnly = true; renderAll(); } else toast("Couldn't save. Check your connection and try again."); }
 async function writeDay(ref, snap, dd, rec){ if (snap.exists) await ref.update({ days: { [dd]: rec } }); else await ref.set({ days: { [dd]: rec } }); }
+// ---------- GPS + selfie ----------
+function distM(a, b){ const R = 6371000, t = x => x * Math.PI / 180, dLa = t(b.lat - a.lat), dLo = t(b.lng - a.lng); const q = Math.sin(dLa / 2) ** 2 + Math.cos(t(a.lat)) * Math.cos(t(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(q)); }
+function getPos(){ return new Promise(res => { if (!navigator.geolocation) return res(null); navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude, acc: Math.round(p.coords.accuracy) }), () => res(null), { enableHighAccuracy:true, timeout:12000, maximumAge:30000 }); }); }
+function geoFor(pos, loc){
+  if (!pos) return { none:true };
+  const offs = (P.offices || []).filter(o => o.lat != null), at = offs.find(o => o.id === loc) || null;
+  const near = offs.map(o => ({ o, d: distM(pos, o) })).sort((a, b) => a.d - b.d)[0];
+  const ref = at ? { o: at, d: distM(pos, at) } : near;
+  return { lat: +pos.lat.toFixed(6), lng: +pos.lng.toFixed(6), acc: pos.acc, ...(ref ? { off: ref.o.id, d: Math.round(ref.d), in: ref.d <= (ref.o.r || 200) + Math.min(pos.acc || 0, 150) } : {}) };
+}
+const geoLabel = g => !g ? "" : g.none ? "Location not shared" : g.off == null ? `GPS ±${g.acc} m` : g.in ? `In ${(locName(g.off, "", true) || "office")} (GPS)` : `${g.d >= 1000 ? (g.d / 1000).toFixed(1) + " km" : g.d + " m"} from ${locName(g.off, "", true) || "office"}`;
+const mapUrl = g => g && g.lat != null ? `https://maps.google.com/?q=${g.lat},${g.lng}` : null;
+function takeSelfie(){
+  return new Promise(async res => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return res(null);
+    let stream; try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:"user", width:{ ideal:480 }, height:{ ideal:480 } }, audio:false }); } catch { return res(null); }
+    const v = h("video", { autoplay:true, playsinline:true, muted:true, style:"width:100%;max-width:360px;border-radius:12px;background:#000;transform:scaleX(-1)" }); v.srcObject = stream;
+    const done = blob => { stream.getTracks().forEach(t => t.stop()); dlg.remove(); res(blob); };
+    const dlg = h("div", { id:"letterDlg" }, h("div", { class:"sheet", style:"max-width:420px;text-align:center" }, h("b", { text:"Punch-in selfie" }), h("p", { class:"muted", style:"font-size:13px", text:"Look at the camera. The photo is saved with this punch only." }), v,
+      h("div", { class:"row", style:"justify-content:center;margin-top:12px" }, h("button", { class:"btn primary", type:"button", onclick: () => { const c = document.createElement("canvas"), sz = 320, w = v.videoWidth || 320, hh = v.videoHeight || 320, m = Math.min(w, hh); c.width = c.height = sz; c.getContext("2d").drawImage(v, (w - m) / 2, (hh - m) / 2, m, m, 0, 0, sz, sz); c.toBlob(b => done(b), "image/jpeg", .7); }, text:"Take photo" }),
+        h("button", { class:"btn", type:"button", onclick: () => done(null), text:"Skip" }))));
+    document.body.append(dlg);
+  });
+}
 function punch(){
   if (!db || !S.uid || S.busy) return;
+  const opening0 = !(S.cur && S.cur.days && S.cur.days[S.today.slice(8)] && S.cur.days[S.today.slice(8)].s.some(x => !x.o));
+  if (!S.punchChecked && (P.geo || "record") !== "off") {
+    S.busy = true; renderMe(); toast("Checking your location…");
+    getPos().then(async pos => {
+      const loc = S.mode === "wfh" ? "home" : $("#locSel").value, g = geoFor(pos, loc);
+      if (opening0 && P.geo === "require" && S.mode !== "wfh" && loc !== "client" && !(g.in)) {
+        S.busy = false; renderMe();
+        toast(g.none ? "Allow location access to punch in at the office, or pick Client site." : `You're ${geoLabel(g)}. Move closer, or pick Client site if you're working elsewhere.`); return;
+      }
+      let sf = null;
+      if (opening0 && P.selfie !== false && assets) { const blob = await takeSelfie(); if (blob) { try { const f = new File([blob], `selfie-${S.today}.jpg`, { type:"image/jpeg" }); const up = await assets.upload(f); sf = up && up.url; } catch {} } }
+      S.punchGeo = g; S.punchSelfie = sf; S.punchChecked = true; S.busy = false; punch(); S.punchChecked = false;
+    });
+    return;
+  }
   const opening = !(S.cur && S.cur.days && S.cur.days[S.today.slice(8)] && S.cur.days[S.today.slice(8)].s.some(x => !x.o));
   if (opening && S.mode !== "wfh" && $("#locSel").value === "client" && !$("#locNote").value.trim()) { toast("Add the client or place you're working from."); $("#locNote").focus(); return; }
   S.busy = true; $("#punchBtn").disabled = true;
@@ -2449,9 +2934,10 @@ function punch(){
     const snap = await ref.get(); const rec = clone(snap.data() && snap.data().days && snap.data().days[dd]) || { s: [] };
     const open = rec.s.find(s => !s.o);
     const loc = S.mode === "wfh" ? "home" : $("#locSel").value, ln = loc === "client" ? $("#locNote").value.trim().slice(0, 80) : "";
-    if (open) { open.o = t; open.lo = open.m === "wfh" ? "home" : $("#locSel").value; await writeDay(ref, snap, dd, rec); await rootRef().update({ live: { date: ds, state:"out", mode: open.m, since: t, loc: open.lo, ln: open.ln || "" } }); toast(`Punched out at ${tLabel(t)} · ${dur(worked(rec, 0))} today`); }
+    const g = S.punchGeo || null, sf = S.punchSelfie || null; S.punchGeo = S.punchSelfie = null;
+    if (open) { open.o = t; open.lo = open.m === "wfh" ? "home" : $("#locSel").value; if (g) open.go = g; await writeDay(ref, snap, dd, rec); await rootRef().update({ live: { date: ds, state:"out", mode: open.m, since: t, loc: open.lo, ln: open.ln || "" } }); toast(`Punched out at ${tLabel(t)} · ${dur(worked(rec, 0))} today`); }
     else {
-      rec.s.push({ i: t, o: null, m: S.mode, l: loc, ...(ln ? { ln } : {}) }); await writeDay(ref, snap, dd, rec); await rootRef().update({ live: { date: ds, state:"in", mode: S.mode, since: t, loc, ln } });
+      rec.s.push({ i: t, o: null, m: S.mode, l: loc, ...(ln ? { ln } : {}), ...(g ? { g } : {}), ...(sf ? { sf } : {}) }); await writeDay(ref, snap, dd, rec); await rootRef().update({ live: { date: ds, state:"in", mode: S.mode, since: t, loc, ln, ...(g ? { g } : {}), ...(sf ? { sf } : {}) } });
       try { if (loc !== "home") localStorage.setItem("atraski-loc", loc); } catch {}
       const lateAt = parseD(ds); lateAt.setHours(0, lateAfterMin(), 0, 0);
       toast(`Punched in at ${tLabel(t)} · ${S.mode === "wfh" ? "WFH" : "Office"}${rec.s.length === 1 && t > lateAt.getTime() && !offReason(ds) ? " · late mark" : ""}`);
@@ -2708,11 +3194,12 @@ function payRow(id){
   const s = summarize(ym, S.prMonths[id], id);
   const j = joinOf(id); let prejoin = 0;
   if (j) for (let d = 1; d <= daysIn(ym); d++) { const ds = `${ym}-${pad(d)}`; if (ds < j && isWorking(ds)) prejoin++; }
-  const salary = Number(pay.salary) || 0, basis = P.payBasis === "calendar" ? daysIn(ym) : s.working;
+  const salary = salaryFor(pay, ym), basis = P.payBasis === "calendar" ? daysIn(ym) : s.working;
   const perDay = basis ? salary / basis : 0;
   const lopAtt = s.lwp + prejoin, adj = Number(row.adjLop) || 0, lop = Math.min(basis, Math.max(0, lopAtt + adj));
   const gross = Math.max(0, Math.round(salary - perDay * lop));
-  const recovery = Math.min(gross, Number(row.recovery) || 0);
+  const emis = loanDues(id, ym), loanEmi = emis.reduce((a, x) => a + x.amt, 0);
+  const recovery = Math.min(gross, (Number(row.recovery) || 0) + loanEmi);
   const trips = tripsForPay(id, ym), travel = trips.reduce((a, t) => a + claimTotal(t), 0);
   const reimb = Number(row.reimb) || 0, incentive = Number(row.incentive) || 0;
   const total = gross - recovery + travel + reimb + incentive;
@@ -2728,7 +3215,7 @@ function payRow(id){
   if (prejoin) checks.push({ t:`Joined ${dLong(j)} · ${prejoin} days before joining` });
   if (ym >= ymOf(S.today)) checks.push({ t:"Month not over yet", red:true });
   return { id, name: nameOf(id), code: person(id).code || "", dept: person(id).dept || "", pos: person(id).pos || "", etype: etypeOf(id), salary, basis, working: s.working, worked: s.worked, leave: s.leave, wfh: s.wfh, perDay,
-    lopAtt, adj, lop, paidDays: basis - lop, debitCl: s.debitCl, debitEl: s.debitEl, shortDays: s.debit, gross, recovery, recoveryNote: row.recoveryNote || "", travel, tripIds: trips.map(t => t.tid), reimb, incentive, total,
+    lopAtt, adj, lop, paidDays: basis - lop, debitCl: s.debitCl, debitEl: s.debitEl, shortDays: s.debit, gross, recovery, loanEmi, emis, recoveryNote: [row.recoveryNote, ...emis.map(x => `${x.label} EMI ${inr(x.amt)}`)].filter(Boolean).join("; "), travel, tripIds: trips.map(t => t.tid), reimb, incentive, total,
     cycle: pay.cycle || defaultCycle(id), status: row.status || "Pending", paidOn: row.paidOn || "", remarks: row.remarks || "", checks, locked:false };
 }
 async function savePrRow(id, patch){
@@ -2889,6 +3376,7 @@ async function lockPayrun(){
       for (const r of rows) {
         const slip = { ym, salary: r.salary, basis: r.basis, working: r.working, lop: r.lop, paidDays: r.paidDays, gross: r.gross, recovery: r.recovery, recoveryNote: r.recoveryNote, travel: r.travel, reimb: r.reimb, incentive: r.incentive, total: r.total, cycle: r.cycle, status: r.status, paidOn: r.paidOn, at: Date.now() };
         if (S.pay[r.id]) await db.doc(`pay/${r.id}`).update({ slips: { [ym]: slip } }); else await db.doc(`pay/${r.id}`).set({ salary: r.salary, slips: { [ym]: slip } });
+        for (const x of (r.emis || [])) await db.doc(`loans/${r.id}`).update({ items: { [x.lid]: { paid: { [ym]: x.amt } } } });
         if (r.debitCl || r.debitEl) { const dd = db.doc(`decisions/${r.id}`), body = { [`debit_${ym}`]: { cl: r.debitCl, el: r.debitEl, at: Date.now() } }; if (S.teamDec[r.id]) await dd.update(body); else await dd.set(body); }
         if (r.tripIds.length) { const dref = db.doc(`finance/${r.id}`), upd = Object.fromEntries(r.tripIds.map(tid => ["t_" + tid, { paidYM: ym }])); if (S.finDec[r.id]) await dref.update(upd); else await dref.set(upd); }
       }
@@ -3278,6 +3766,10 @@ function myTodos(){
   for (const tr of tripsOf(S.uid)) { const st = tripState(S.uid, tr); if (st.k === "claim") t.push({ t:`File your claim for ${tr.to} by ${dLabel(addDays(tr.end || tr.start, P.teClaimDays))}`, href:"#travel" }); if (st.k === "finq") t.push({ t:`Finance has a question on your ${tr.to} claim: ${tdec(S.uid, tr.tid).fin.note || "see the claim"}`, href:"#travel", red:true }); }
   if (isOpen(S.pfPeriod) && sheetOf(S.uid) && !(S.pfSelf && S.pfSelf.submittedAt)) t.push({ t:`KRA/KPI self-assessment for ${qLabel(S.pfPeriod)} is open · due ${dLong(cycleOf(S.pfPeriod).due || qRange(S.pfPeriod).to)}`, href:"#perf", red:true });
   if (S.pfOut && !(S.pfSelf && S.pfSelf.ackAt)) t.push({ t:"Your performance review is ready to discuss", href:"#perf" });
+  for (const [aid, x] of Object.entries(S.myAssets || {})) if (!(S.myAssetAck || {})[aid]) t.unshift({ t:`Acknowledge the ${x.type.toLowerCase()} assigned to you (${x.name})`, href:"#onboard", red:true });
+  for (const [rid, r] of Object.entries(S.myFbReq || {})) if (S.fbDone[rid] === false) t.push({ t:`Give anonymous feedback about ${nameOf(r.subject)} by ${dLabel(r.due)}`, href:"#perf" });
+  for (const [pid, p0] of Object.entries(S.polls || {})) if (!(S.myVotes || {})[pid] && !(p0.closes && p0.closes < S.today)) t.push({ t:`Answer the poll: ${p0.q}`, href:"#engage", info:true });
+  for (const [tid, x] of Object.entries(S.myTickets || {})) if (x.status === "answered") t.push({ t:`Your help desk ticket was answered: ${x.subject}`, href:"#help" });
   for (const l of ((S.myLife && S.myLife.letters) || [])) if (l.needsAccept && !l.acceptedAt) t.unshift({ t:`Read and accept your ${l.title.toLowerCase()}`, href:"#onboard", red:true });
   if (S.myExit && S.myExit.stage === "notice" && !S.myExit.handoverNote) t.unshift({ t:`Submit your handover (last working day ${dLong(S.myExit.lwd)})`, href:"#onboard", red:true });
   { const me = S.cur ? summarize(S.curYM, S.cur, S.uid) : null; if (me && me.late >= Number(P.lateWarn)) t.push({ t:`Written reminder: ${me.late} late marks this month (ATR-HR-02). Punch in by ${t12(P.flexTo)}.`, href:"#me", info:true }); }
@@ -3305,6 +3797,10 @@ function lifeItems(){
   for (const a of S.accList.filter(a => a.role === "pending" && !candMails.has(a.email.toLowerCase()) && !(person(a.id).exited)))
     items.push({ cat:"life", id: a.id, at: a.created ? Date.parse(a.created) : now, title:`New sign-up: ${a.name || a.email}`, sub:`${a.email} is waiting for access. Give access, or invite them as a candidate first.`, acts:[["Give access", () => acc && acc.open(), "good"]] });
   for (const id of teamIds()) { const end = probEndOfP(id); if (end && end <= addDays(S.today, 30) && !(S.exits[id] && S.exits[id].stage !== "withdrawn")) items.push({ cat:"life", id, at: Date.parse(end), title:`Probation review ${end < S.today ? "overdue" : "due " + dLabel(end)}`, sub:"Confirm, extend once, or end (ATR-HR-01).", acts:[["Open", () => { location.hash = "#life"; }, "good"]] }); }
+  for (const [uid, d] of Object.entries(S.tickets)) for (const [tid, t] of Object.entries((d && d.items) || {})) if (t.status === "open" && uid !== S.uid)
+    items.push({ cat:"life", id: uid, at: t.upd || t.at, title:`Help desk: ${t.subject}`, sub:`${t.cat} · ${(t.thread || []).slice(-1)[0] ? (t.thread.slice(-1)[0].text || "").slice(0, 90) : ""}`, acts:[["Answer", () => { location.hash = "#help"; }, "good"]] });
+  for (const [uid, d] of Object.entries(S.loanReq)) for (const [lid, r] of Object.entries((d && d.items) || {})) if (r.status === "requested")
+    items.push({ cat:"life", id: uid, at: r.at, title:`${r.kind === "advance" ? "Salary advance" : "Loan"} request · ${inr(r.amount)}`, sub:`${r.purpose} · ${r.months} EMI${r.months > 1 ? "s" : ""}`, acts:[["Review", () => { location.hash = "#loans"; }, "good"]] });
   for (const [id, ex] of Object.entries(S.exits)) { if (ex && ex.stage === "nodues") items.push({ cat:"life", id, at: (ex.ndc || {}).at || now, title:"Approve the F&F statement", sub:`No Dues issued · last working day ${dLong(ex.lwd)}`, acts:[["Open", () => { location.hash = "#life"; }, "good"]] });
     if (ex && ex.stage === "fnf") items.push({ cat:"life", id, at: (ex.fnf || {}).at || now, title:"Pay the F&F and close the exit", sub:`Net ${inr(ex.fnf.net)} due by ${dLong(ex.fnf.due)}`, acts:[["Open", () => { location.hash = "#life"; }, "good"]] }); }
   return items;
@@ -3499,7 +3995,7 @@ const ICONS = {
 };
 function svgIcon(k){ const t = document.createElementNS("http://www.w3.org/2000/svg", "svg"); t.setAttribute("viewBox", "0 0 24 24"); t.setAttribute("fill", "none"); t.setAttribute("stroke", "currentColor"); t.setAttribute("stroke-width", "1.8"); t.setAttribute("stroke-linecap", "round"); t.setAttribute("stroke-linejoin", "round"); t.setAttribute("aria-hidden", "true"); t.innerHTML = ICONS[k] || ""; return t; }
 document.querySelectorAll("[data-icon]").forEach(el => el.prepend(svgIcon(el.dataset.icon)));
-const TITLES = { home:"Home", inbox:"Inbox", me:"Attendance & leave", travel:"Travel & claims", perf:"Performance", payslips:"Payslips", onboard:"My onboarding & letters", team:"Team", directory:"People directory", docs:"Policies & documents", life:"Hiring & exits", people:"Employee records", org:"Structure", payrun:"Pay run", policy:"Policy settings" };
+const TITLES = { home:"Home", inbox:"Inbox", me:"Attendance & leave", travel:"Travel & claims", perf:"Performance", payslips:"Payslips", onboard:"My onboarding & letters", team:"Team", directory:"People directory", docs:"Policies & documents", life:"Hiring & exits", people:"Employee records", assets:"Assets", help:"Help desk", loans:"Loans & advances", engage:"Kudos & polls", reports:"Reports", org:"Structure", payrun:"Pay run", policy:"Policy settings" };
 function setShell(r){
   const t = r === "team" ? (effRole() === "admin" ? "Overview" : "My team") : r === "inbox" && !canSeeTeam() && !S.finance ? "My to-dos" : TITLES[r] || "";
   $("#tbTitle").textContent = t; document.title = `${t} · Atraski People`;
@@ -3528,23 +4024,26 @@ function route(){
   const allowed = role === "admin" ? ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs",...(canCirculate() && !S.viewAs.role ? ["life"] : []), "people","org", ...(S.owner && !S.viewAs.role ? ["payrun"] : []), "policy"] : role === "manager" ? ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs"] : ["home","inbox","me","travel","perf","payslips","onboard","directory","docs"];
   if (!S.payOn && !S.owner) { const i = allowed.indexOf("payslips"); if (i >= 0) allowed.splice(i, 1); }
   if (S.finance && !S.owner && !S.viewAs.role && !allowed.includes("payrun")) allowed.splice(allowed.indexOf("directory"), 0, "payrun");
+  allowed.splice(allowed.indexOf("travel") + 1, 0, "loans", "help"); allowed.splice(allowed.indexOf("directory") + 1, 0, "engage");
+  if (!S.viewAs.role && (role === "admin" || S.finance)) allowed.push("assets", "reports");
   let r = (location.hash || "").slice(1);
   if (!allowed.includes(r)) r = allowed[0];
   document.querySelectorAll(".side nav a").forEach(a => { a.hidden = !allowed.includes(a.dataset.route); a.setAttribute("aria-current", a.dataset.route === r ? "page" : "false"); });
-  for (const v of ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs","life","people","org","payrun","policy"]) $("#v-" + v).hidden = v !== r;
+  for (const v of ["home","inbox","me","travel","loans","help","perf","payslips","onboard","team","directory","engage","docs","life","people","org","assets","reports","payrun","policy"]) $("#v-" + v).hidden = v !== r;
   document.querySelectorAll(".side .ng").forEach(g => g.hidden = ![...g.querySelectorAll("a")].some(a => !a.hidden));
   if (r === "home") renderHome(); if (r === "inbox") renderInbox(); if (r === "payslips") renderPayslips(); if (r === "directory") renderDirectory(); if (r === "docs") renderDocs();
   window.scrollTo({ top: 0 }); setShell(r); renderTopbar();
   if (r === "team") loadReport();
   if (r === "travel") renderTravel();
-  if (r === "perf") renderPerf();
+  if (r === "perf") { renderPerf(); renderGoals(); renderFeedback(); renderCalib(); }
   if (r === "onboard") { S.obForm = false; renderOnboard(); renderMyLetters(); renderMyExit(); }
   if (r === "life") { refreshAccounts(true); renderLife(); }
+  if (r === "assets") renderAssets(); if (r === "help") renderHelp(); if (r === "loans") renderLoans(); if (r === "engage") { renderEngage(); loadPollResults(); } if (r === "reports") renderReports2();
   if (r === "policy") { loadDriveAdmin(); }
   if (r === "payrun") { subPayrun(); loadPrMonths(); renderPayrun(); renderPayCheck(); }
 }
 function renderAll(){ renderRole(); renderBanners(); renderMe(); renderMonth(); renderReqs(); renderRules(); renderTeam(); renderPeople(); renderOrg(); renderPayslips();
-  if (!$("#v-travel").hidden && !$("#v-travel").contains(document.activeElement)) renderTravel(); renderPayrun(); renderPerf(); renderHome(); renderInbox(); renderPayslipsPage(); renderDirectory(); renderDocs(); renderHrDocs(); renderMyDocs(); renderOnboard(); renderMyLetters(); renderMyExit(); renderLife(); renderDrivePanel(); navBadges(); }
+  if (!$("#v-travel").hidden && !$("#v-travel").contains(document.activeElement)) renderTravel(); renderPayrun(); renderPerf(); renderHome(); renderInbox(); renderPayslipsPage(); renderDirectory(); renderDocs(); renderHrDocs(); renderMyDocs(); renderOnboard(); renderMyLetters(); renderMyExit(); renderLife(); renderDrivePanel(); renderAssets(); renderMyAssets(); renderHelp(); renderLoans(); renderEngage(); renderGoals(); renderFeedback(); renderCalib(); navBadges(); }
 
 // ---------- subscriptions ----------
 let unsubCur = null;
@@ -3612,6 +4111,27 @@ async function init(){
   if (canCirculate()) { db.collection("cand").onSnapshot(qs => { S.cands = {}; for (const d of qs.docs) S.cands[d.id] = d.data(); renderLife(); renderInbox(); navBadges(); }, () => {});
     db.collection("life").onSnapshot(qs => { S.lifes = {}; for (const d of qs.docs) S.lifes[d.id] = d.data(); renderLife(); }, () => {});
     refreshAccounts(true); setInterval(() => refreshAccounts(), 60000); }
+  if (S.uid) {
+    db.doc(`assetmine/${S.uid}`).onSnapshot(s => { S.myAssets = (s.data() && s.data().items) || {}; renderMyAssets(); navBadges(); }, () => {});
+    db.doc(`assetack/${S.uid}`).onSnapshot(s => { S.myAssetAck = s.data() || {}; renderMyAssets(); navBadges(); }, () => {});
+    db.doc(`tickets/${S.uid}`).onSnapshot(s => { S.myTicketsDoc = s.data() || null; S.myTickets = (s.data() && s.data().items) || {}; renderHelp(); navBadges(); }, () => {});
+    db.doc(`loanreq/${S.uid}`).onSnapshot(s => { S.myLoanReq = (s.data() && s.data().items) || {}; renderLoans(); }, () => {});
+    db.doc(`loans/${S.uid}`).onSnapshot(s => { S.myLoanAct = (s.data() && s.data().items) || {}; renderLoans(); }, () => {});
+  }
+  if (S.admin || S.finance) { db.doc("assetreg/main").onSnapshot(s => { S.assetReg = (s.data() && s.data().items) || {}; S.assetRegExists = s.exists; renderAssets(); renderLife(); }, () => {}); }
+  if (S.admin) db.collection("assetack").onSnapshot(qs => { S.assetAck = {}; for (const d of qs.docs) S.assetAck[d.id] = d.data(); renderAssets(); }, () => {});
+  if (canCirculate()) db.collection("tickets").onSnapshot(qs => { S.tickets = {}; for (const d of qs.docs) S.tickets[d.id] = d.data(); renderHelp(); renderInbox(); navBadges(); }, () => {});
+  if (canCirculate() || S.finance) { db.collection("loanreq").onSnapshot(qs => { S.loanReq = {}; for (const d of qs.docs) S.loanReq[d.id] = d.data(); renderLoans(); renderInbox(); navBadges(); }, () => {});
+    db.collection("loans").onSnapshot(qs => { S.loanAct = {}; for (const d of qs.docs) S.loanAct[d.id] = d.data(); renderLoans(); if (!$("#v-payrun").hidden) renderPayrun(); }, () => {}); }
+  if (S.uid) {
+    db.doc(`goals/${S.uid}`).onSnapshot(s => { S.myGoals = (s.data() && s.data().items) || {}; renderGoals(); }, () => {});
+    db.doc(`fbreq/${S.uid}`).onSnapshot(s => { S.myFbReq = (s.data() && s.data().items) || {}; loadFbDone(); }, () => {});
+    db.doc(`votes/${S.uid}`).onSnapshot(s => { S.myVotes = s.data() || {}; renderEngage(); }, () => {});
+  }
+  if (S.admin) db.collection("goals").onSnapshot(qs => { S.teamGoals = {}; for (const d of qs.docs) S.teamGoals[d.id] = d.data(); renderGoals(); renderCalib(); }, () => {});
+  if (S.admin) db.collection("calib").onSnapshot(qs => { S.calib = {}; for (const d of qs.docs) S.calib[d.id] = d.data(); renderCalib(); }, () => {});
+  db.collection("kudos").onSnapshot(qs => { S.kudos = {}; for (const d of qs.docs) S.kudos[d.id] = d.data(); renderEngage(); }, () => {});
+  db.collection("polls").onSnapshot(qs => { S.polls = {}; for (const d of qs.docs) S.polls[d.id] = d.data(); renderEngage(); if (!$("#v-engage").hidden) loadPollResults(); navBadges(); }, () => {});
   if (S.owner) { db.doc("drivelog/status").onSnapshot(s => { S.drvLog = s.data() || null; renderDrivePanel(); }, () => {}); loadDriveAdmin(); }
   if (S.finance && !S.admin) db.collection("decisions").onSnapshot(qs => { S.teamDec = {}; for (const d of qs.docs) S.teamDec[d.id] = d.data(); renderAll(); }, () => {});
   if (S.finance && !S.admin) db.collection("att").onSnapshot(qs => { S.team = {}; for (const d of qs.docs) S.team[d.id] = d.data(); refreshNames(); renderAll(); }, () => {});
@@ -3639,7 +4159,7 @@ $("#rpRefresh").addEventListener("click", loadReport);
 $("#rpCsv").addEventListener("click", downloadCsv);
 $("#rpPunch").addEventListener("click", downloadPunchLog);
 $("#v-policy").addEventListener("input", () => policyDirty = true);
-$("#hAdd").addEventListener("click", () => { const d = $("#hDate").value; if (!d) { toast("Pick the holiday date."); return; } draftHol = draftHol.filter(x => x.d !== d); draftHol.push({ d, n: $("#hName").value.trim() || "Holiday" }); $("#hName").value = ""; policyDirty = true; renderHol(); });
+$("#hAdd").addEventListener("click", () => { const d = $("#hDate").value, loc = $("#hLoc").value; if (!d) { toast("Pick the holiday date."); return; } draftHol = draftHol.filter(x => !(x.d === d && (x.loc || "") === loc)); draftHol.push({ d, n: $("#hName").value.trim() || "Holiday", ...(loc ? { loc } : {}) }); $("#hName").value = ""; policyDirty = true; renderHol(); });
 $("#pSave").addEventListener("click", savePolicy);
 $("#trStart").value = addDays(S.today, 4); $("#trEnd").value = addDays(S.today, 4);
 ["#trScope","#trMode","#trCabWhy","#trStart","#trEnd","#trEst","#trCat"].forEach(id => $(id).addEventListener("change", () => { if (id === "#trStart" && $("#trEnd").value < $("#trStart").value) $("#trEnd").value = $("#trStart").value; fillTripForm(); }));
@@ -3653,6 +4173,21 @@ $("#prCsv").addEventListener("click", downloadPayCsv);
 $("#prSwitch").addEventListener("click", togglePayslips);
 $("#prDrive").addEventListener("click", () => payrunToDrive(S.prYM));
 $("#lfInvite").addEventListener("click", inviteCandidate);
+$("#asAdd").addEventListener("click", addAsset);
+$("#tkSend").addEventListener("click", sendTicket);
+$("#tkAttach").addEventListener("click", () => pickAndUpload(async f => { if (!assets) { toast("Attachments need the live app."); return; } try { const bin = Uint8Array.from(atob(f.data), c => c.charCodeAt(0)); const up = await assets.upload(new File([bin], f.name || "file", { type: f.mime })); S.tkFileUp = up.url; $("#tkFile").textContent = `Attached: ${f.name}`; } catch { toast("Couldn't attach the file."); } }));
+$("#lnSend").addEventListener("click", requestLoan);
+$("#goalAdd").addEventListener("click", addGoal);
+$("#goalQ").addEventListener("change", e => { S.goalQ = e.target.value; renderGoals(); });
+$("#calLoad").addEventListener("click", async () => { await loadPfTeam(); for (const id of teamIds()) if (sheetOf(id)) await loadFbSummary(id); S.fbAgg = null; renderFeedback(); renderCalib(); });
+$("#kdSend").addEventListener("click", sendKudos);
+$("#plNewBtn").addEventListener("click", () => { $("#plNew").hidden = !$("#plNew").hidden; });
+$("#plCreate").addEventListener("click", createPoll);
+$("#rbSet").addEventListener("change", e => { S.rb.set = e.target.value; S.rb.cols = null; renderReports2(); });
+$("#rbYM").addEventListener("change", () => renderReports2());
+$("#rbRun").addEventListener("click", runReport);
+$("#rbCsv").addEventListener("click", reportCsv);
+$("#rbDrive").addEventListener("click", reportDrive);
 $("#lfSepBtn").addEventListener("click", () => { const s = $("#lfSep"); s.hidden = !s.hidden; s.replaceChildren(); renderLife(); });
 $("#drvCopy").addEventListener("click", async () => { if (!S.drvAdmin) await loadDriveAdmin(); if (!S.drvAdmin || !S.drvAdmin.secret) { toast("Only the CEO can see the script."); return; } const code = driveScript();
   try { await navigator.clipboard.writeText(code); toast("Script copied. Paste it into script.new."); } catch { const box = $("#drvCode"); box.hidden = false; box.replaceChildren(h("div", { class:"meta", text:"Select all and copy:" }), h("textarea", { class:"codebox", rows:"10", text: code, style:"width:100%" })); } });
