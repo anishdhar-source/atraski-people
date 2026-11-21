@@ -194,6 +194,17 @@ async function digest() {
 // =====================================================================================
 // Extra Drive registers: assets, loans & advances, help desk (run with the nightly backup)
 // =====================================================================================
+// HR can view the People (documents + letters) and Hiring folders; nothing else in the Drive is shared.
+const HR_FOLDERS = [["People"], ["Hiring"]];
+async function hrShareItems() {
+  const hr = (await members()).filter(m => m.role === "hr" && m.email).map(m => String(m.email).toLowerCase());
+  return HR_FOLDERS.map(path => ({ action: "share", path, viewers: hr }));
+}
+async function shareHr() {
+  const out = await gas({ action: "batch", items: await hrShareItems() }), res = out.results || [];
+  const errs = res.filter((x: any) => !x.ok).map((x: any) => x.error);
+  return { ok: !errs.length, added: res.reduce((a: number, x: any) => a + (x.added || 0), 0), removed: res.reduce((a: number, x: any) => a + (x.removed || 0), 0), errors: errs };
+}
 async function registers() {
   const [ms, areg, loans, tks, att] = await Promise.all([members(), getDoc("assetreg/main"), listDocs("loans"), listDocs("tickets"), listDocs("att")]);
   const titles = Object.fromEntries(att.filter(x => x.path.split("/").length === 2).map(x => [x.path.split("/")[1], x.data.title]));
@@ -205,6 +216,7 @@ async function registers() {
       ...loans.filter(x => x.path.split("/").length === 2).flatMap(({ path, data }) => Object.values((data.items || {}) as Record<string, any>).map((l: any) => { const paid = Object.values(l.paid || {}).reduce((a: number, v: any) => a + (Number(v) || 0), 0); return [nm(uid(path)), l.kind, l.amount, l.emi, l.months, l.startYM, paid, Math.max(0, l.amount - paid), l.purpose || l.label || ""]; }))] }] },
     { action: "sheet", path: ["Help desk"], name: `Tickets ${yr}`, tabs: [{ name: "Tickets", rows: [["Employee", "Topic", "Subject", "Status", "Raised", "Messages", "Last message"],
       ...tks.filter(x => x.path.split("/").length === 2).flatMap(({ path, data }) => Object.values((data.items || {}) as Record<string, any>).map((t: any) => [nm(uid(path)), t.cat, t.subject, t.status, ist(t.at), (t.thread || []).length, ((t.thread || []).slice(-1)[0] || {}).text || ""]))] }] },
+    ...(await hrShareItems()),
   ];
   const out = await gas({ action: "batch", items }); const errs = (out.results || []).filter((x: any) => !x.ok).map((x: any) => x.error);
   return { ok: !errs.length, files: (out.results || []).length, errors: errs };
@@ -224,6 +236,7 @@ Deno.serve(async req => {
       case "appraisal": return json(await opAppraisal(c, b));
       case "digest": need(c.role === "owner", "Only the CEO.", 403); return json(await digest());
       case "registers": need(c.role === "owner", "Only the CEO.", 403); return json(await registers());
+      case "share_hr": need(c.role === "owner", "Only the CEO.", 403); return json(await shareHr());
       default: throw new Fail("Unknown request.");
     }
   } catch (e) {

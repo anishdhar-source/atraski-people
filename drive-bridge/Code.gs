@@ -34,6 +34,7 @@ function handle(req) {
     case 'file': return saveFile(req);
     case 'letter': return makeLetter(req);
     case 'mail': return sendMail(req);
+    case 'share': return shareFolder(req);
     case 'batch': return { ok: true, results: (req.items || []).map(it => { try { return handle(it); } catch (err) { return { ok: false, error: String(err.message || err) }; } }) };
     default: throw new Error('Unknown action ' + req.action);
   }
@@ -120,6 +121,17 @@ function makeLetter(req) {
   const pdf = folder.createFile(docFile.getAs('application/pdf').setName(name + '.pdf'));
   if (!req.keepDoc) docFile.setTrashed(true);
   return { ok: true, url: pdf.getUrl(), id: pdf.getId(), docUrl: req.keepDoc ? docFile.getUrl() : '', folderUrl: folder.getUrl() };
+}
+
+// ---------- sharing: keep a folder's viewers equal to the list the app sends (HR only) ----------
+// Only touches viewers of the folder at req.path; the owner (CEO) and any editors are never changed.
+function shareFolder(req) {
+  const folder = folderAt(req.path), want = (req.viewers || []).map(e => String(e).toLowerCase().trim()).filter(Boolean);
+  const have = folder.getViewers().map(u => u.getEmail().toLowerCase());
+  const added = [], removed = [];
+  want.forEach(e => { if (have.indexOf(e) < 0) { folder.addViewer(e); added.push(e); } });
+  have.forEach(e => { if (want.indexOf(e) < 0) { folder.removeViewer(e); removed.push(e); } });
+  return { ok: true, added: added.length, removed: removed.length, folderUrl: folder.getUrl() };
 }
 
 // ---------- email from the CEO's Gmail ----------
