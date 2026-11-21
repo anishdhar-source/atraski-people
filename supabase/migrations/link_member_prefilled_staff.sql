@@ -1,0 +1,4 @@
+-- Applied to the live project as migration "link_member_prefilled_staff".
+-- public.link_member(p_pre text, p_uid uuid): CEO only. Moves every doc under <coll>/<pre> (pre-filled staff, ids e_*)
+-- to <coll>/<uid>, merging into what the account already has (account keys win), re-keys config/roles
+-- and repoints anyone whose manager was the pre-filled id.
