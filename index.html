@@ -2897,7 +2897,7 @@ function linkBox(id){
   refreshAccounts();
   const taken = new Set(Object.keys(S.ppl).filter(x => !/^e_|^s_/.test(x) && person(x).pos)), first = s => String(s || "").toLowerCase().split(/\s+/)[0];
   const opts = (S.accList || []).filter(a => a.role !== "owner" && !taken.has(a.id));
-  const guess = opts.find(a => first(a.name) && first(a.name) === first(nameOf(id)));
+  const we = String(person(id).workEmail || "").toLowerCase(), guess = opts.find(a => we && String(a.email || "").toLowerCase() === we) || opts.find(a => first(a.name) && first(a.name) === first(nameOf(id)));   // work email first, then first name
   const sel = h("select", { "aria-label":"Account to link", style:"max-width:170px;font-size:12px" }, h("option", { value:"", text: opts.length ? "Pick their account…" : "No new sign-ups yet" }),
     ...opts.map(a => h("option", { value:a.id, selected: guess && guess.id === a.id, text:`${a.name || a.email}${a.email ? " · " + a.email : ""}` })));
   return h("div", { class:"row", style:"gap:6px;margin-top:4px;flex-wrap:nowrap" }, h("span", { class:"pill c-pending", text:"Not signed up yet" }), sel,
