@@ -1,0 +1,1 @@
+-- Applied as migration "archive_collection_hr_only": archive/<doc> (past exits, old F&F tracker, past staff) is readable and writable by CEO and HR only.

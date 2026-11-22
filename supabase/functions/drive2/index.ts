@@ -237,6 +237,12 @@ Deno.serve(async req => {
       case "digest": need(c.role === "owner", "Only the CEO.", 403); return json(await digest());
       case "registers": need(c.role === "owner", "Only the CEO.", 403); return json(await registers());
       case "share_hr": need(c.role === "owner", "Only the CEO.", 403); return json(await shareHr());
+      case "migrate": {   // copy an old HR folder tree into Atraski People / Archive (resumable, read-only on the source)
+        need(c.role === "owner", "Only the CEO.", 403);
+        need(typeof b.src === "string" && /^[A-Za-z0-9_-]{10,80}$/.test(b.src), "Bad folder.");
+        need(Array.isArray(b.path) && b.path[0] === "Archive" && b.path.length <= 3 && b.path.every((x: unknown) => typeof x === "string" && x.length <= 80), "Bad destination.");
+        return json(await gas({ action: "copyTree", src: b.src, path: b.path, budget: Math.min(Number(b.budget) || 40, 100) }));
+      }
       default: throw new Fail("Unknown request.");
     }
   } catch (e) {

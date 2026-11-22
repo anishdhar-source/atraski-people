@@ -35,6 +35,7 @@ function handle(req) {
     case 'letter': return makeLetter(req);
     case 'mail': return sendMail(req);
     case 'share': return shareFolder(req);
+    case 'copyTree': return copyTree(req);
     case 'batch': return { ok: true, results: (req.items || []).map(it => { try { return handle(it); } catch (err) { return { ok: false, error: String(err.message || err) }; } }) };
     default: throw new Error('Unknown action ' + req.action);
   }
@@ -132,6 +133,32 @@ function shareFolder(req) {
   want.forEach(e => { if (have.indexOf(e) < 0) { folder.addViewer(e); added.push(e); } });
   have.forEach(e => { if (want.indexOf(e) < 0) { folder.removeViewer(e); removed.push(e); } });
   return { ok: true, added: added.length, removed: removed.length, folderUrl: folder.getUrl() };
+}
+
+// ---------- migration: copy an old folder tree into the Atraski People folder ----------
+// Resumable: copies at most req.budget files per call (and stops after ~100 s); files already copied
+// (same name in the same place) are skipped, so the app simply calls again until done is true.
+// The source is only read, never changed.
+function copyTree(req) {
+  const budget = Math.min(Number(req.budget) || 40, 100), start = Date.now();
+  let copied = 0, skipped = 0;
+  function walk(src, dst) {
+    const files = src.getFiles();
+    while (files.hasNext()) {
+      if (copied >= budget || Date.now() - start > 100000) return false;
+      const f = files.next(), nm = f.getName();
+      if (dst.getFilesByName(nm).hasNext()) { skipped++; continue; }
+      f.makeCopy(nm, dst); copied++;
+    }
+    const subs = src.getFolders();
+    while (subs.hasNext()) {
+      const s = subs.next(), it = dst.getFoldersByName(s.getName());
+      if (!walk(s, it.hasNext() ? it.next() : dst.createFolder(s.getName()))) return false;
+    }
+    return true;
+  }
+  const dst = folderAt(req.path), done = walk(DriveApp.getFolderById(req.src), dst);
+  return { ok: true, copied: copied, skipped: skipped, done: done, folderUrl: dst.getUrl() };
 }
 
 // ---------- email from the CEO's Gmail ----------
