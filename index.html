@@ -2567,7 +2567,7 @@ async function settleOld(sr){
 }
 function renderArchive(force){
   const pan = $("#arcPanel"); if (!pan) return;
-  const f = (S.arcFnf && S.arcFnf.fnf) || [], past = (S.arcPast && S.arcPast.past) || [];
+  const f = (S.arcFnf && S.arcFnf.fnf) || [], past = ((S.arcPast && S.arcPast.past) || []).filter(x => x.status !== "current");   // current staff live in People
   pan.hidden = !canCirculate() || (!f.length && !past.length && !S.owner);
   if (pan.hidden || $("#v-life").hidden) return;
   if (!force && pan.contains(document.activeElement) && /INPUT/.test(document.activeElement.tagName)) return;
