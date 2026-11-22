@@ -2439,13 +2439,15 @@ function candCard(c){
   return card;
 }
 function fnfSuggest(id, ex){
-  const pay = S.pay[id] || {}, gross = Number(pay.salary) || 0, u = person(id), basic = Number(u.basic) || Math.round(gross * .5);
   const ym = ex.lwd.slice(0, 7), dim = daysIn(ym), d = +ex.lwd.slice(8);
+  const pay = S.pay[id] || {}, gross = salaryFor(pay, ym), u = person(id), basic = Number(u.basic) || Math.round(gross * .5);   // salary as revised for the exit month
   const earn = [[`Salary for ${d} day${d === 1 ? "" : "s"} of ${ymLabel(ym)} (gross ÷ ${dim} × ${d})`, Math.round(gross * d / dim)]];
   { const el = leaveLeft(id).el; if (el > 0) earn.push([`EL encashment: ${num1(el)} days × basic ÷ 30`, Math.round(el * basic / 30)]); }
   const ready = tripsOf(id).filter(t => tripState(id, t).k === "ready").reduce((a, t) => a + claimTotal(t), 0); if (ready) earn.push(["Approved travel claims (ATR-HR-08)", ready]);
   const yrs = joinOf(id) ? Math.floor(monthsBetween(joinOf(id), ex.lwd) / 12) : 0; if (yrs >= 5) earn.push([`Gratuity: 15/26 × basic × ${yrs} years`, Math.round(15 / 26 * basic * yrs)]);
   const less = [], hv = ex.handover || {};
+  // notice shortfall: the last day was brought forward; recover unserved days unless the CEO waived them (then delete the line)
+  if (ex.lwdChanged && ex.lwdChanged.from > ex.lwd) { const n = Math.round((parseD(ex.lwdChanged.from) - parseD(ex.lwd)) / 864e5); less.push([`Notice shortfall: ${n} day${n === 1 ? "" : "s"} × gross ÷ 30 (delete if notice was waived)`, Math.round(n * gross / 30)]); }
   for (const [lid, l] of Object.entries(((S.loanAct[id] || {}).items) || {})) { const b = loanBal(l); if (b > 0) less.push([`Outstanding ${l.label || (l.kind === "advance" ? "salary advance" : "loan")} (${inr(l.amount)})`, b]); }
   if (hv.h5 && hv.h5.amounts) { if (hv.h5.amounts.advances) less.push(["Advances (ATR-HR-09)", hv.h5.amounts.advances]); if (hv.h5.amounts.other) less.push(["Other recoveries", hv.h5.amounts.other]); if (hv.h5.amounts.assets) less.push(["Unreturned assets (ATR-HR-07)", hv.h5.amounts.assets]); }
   if (hv.h4 && hv.h4.amounts && hv.h4.amounts.assets && !(hv.h5 && hv.h5.amounts && hv.h5.amounts.assets)) less.push(["Unreturned assets (ATR-HR-07)", hv.h4.amounts.assets]);
