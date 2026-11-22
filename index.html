@@ -499,6 +499,26 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
 .bal{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .bal b{font-family:var(--f-mono);font-size:20px}
 @media (prefers-reduced-motion:no-preference){.punch{transition:transform .08s}.punch:active{transform:scale(.99)}}
+.pol-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.pol-card{border:1px solid var(--line,#DDE1E9);border-radius:12px;padding:12px 14px;background:var(--surface,#fff);cursor:pointer;display:grid;gap:6px;text-align:left;font:inherit;color:inherit}
+.pol-card:hover{border-color:var(--ink,#151A2D)}
+.pol-card .code{font-size:11px;letter-spacing:.06em;font-weight:700;color:var(--muted,#5C6479)}
+.pol-card .t{font-weight:700;font-size:15px;line-height:1.3}
+.pol-card .s{font-size:12.5px;color:var(--muted,#5C6479);line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pol-reader{border:1px solid var(--line,#DDE1E9);border-radius:14px;padding:18px;display:grid;gap:12px;background:var(--surface,#fff)}
+.pol-reader h3{margin:0;font-size:20px}
+.pol-reader h4{margin:10px 0 0;font-size:15px}
+.pol-reader p,.pol-reader li{font-size:14px;line-height:1.6;margin:0}
+.pol-reader ul,.pol-reader ol{margin:0;padding-left:20px;display:grid;gap:4px}
+.pol-reader .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;font-size:12.5px}
+.pol-reader .meta-grid div{background:var(--bg,#F4F6FA);border-radius:8px;padding:8px 10px}
+.pol-reader .meta-grid b{display:block;font-size:10.5px;letter-spacing:.06em;color:var(--muted,#5C6479);font-weight:700}
+.pol-reader .ptbl{overflow-x:auto}
+.pol-reader table{border-collapse:collapse;width:100%;font-size:13px}
+.pol-reader th,.pol-reader td{border:1px solid var(--line,#DDE1E9);padding:7px 9px;text-align:left;vertical-align:top}
+.pol-reader th{background:var(--bg,#F4F6FA);font-weight:700}
+.pol-reader .pnote{font-size:12.5px;color:var(--muted,#5C6479);border-left:3px solid var(--line,#DDE1E9);padding-left:10px}
+.pol-reader .accept{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line,#DDE1E9);padding-top:12px}
 </style>
 <style>
 .flags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
@@ -926,8 +946,18 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
 
   <!-- DOCUMENTS -->
   <section id="v-docs" class="stack" hidden>
+    <div class="panel stack" id="polPanel">
+      <div class="row between"><div><span class="eyebrow">Atraski People Policies · ATR-HR-01 to ATR-HR-12</span><h2>Company policies</h2></div><span class="pill" id="polMine"></span></div>
+      <p class="muted" style="margin:0;font-size:13px;max-width:85ch">Every policy is here in full. Open one to read it, then press <b>I have read and accept</b>. Where a policy says <b>greytHR</b>, it now means <b>Atraski People</b>: punch in, apply for leave and WFH, file claims and acknowledge policies here.</p>
+      <div id="polList" class="pol-list"></div>
+      <div id="polReader" class="pol-reader" hidden></div>
+    </div>
+    <div class="panel stack" id="polTrack" hidden>
+      <div class="row between"><div><span class="eyebrow">CEO and HR</span><h2>Who has accepted the policies</h2></div><span class="pill" id="polTrackSum"></span></div>
+      <div class="tbl-wrap"><table class="ppl" style="min-width:560px"><thead><tr><th>Person</th><th>Accepted</th><th>Still to accept</th></tr></thead><tbody id="polTrackBody"></tbody></table></div>
+    </div>
     <div class="panel stack">
-      <div><span class="eyebrow">Company</span><h2>Policies &amp; documents</h2></div>
+      <div><span class="eyebrow">Company</span><h2>Other documents</h2></div>
       <p class="muted" style="margin:0;font-size:13px">Links open in Google Drive. If one doesn't open for you, ask HR to share it.</p>
       <div id="docList" class="stack"></div>
       <div id="docAdmin" class="stack" hidden>
@@ -3875,6 +3905,7 @@ function myTodos(){
   for (const [rid, r] of Object.entries(S.myFbReq || {})) if (S.fbDone[rid] === false) t.push({ t:`Give anonymous feedback about ${nameOf(r.subject)} by ${dLabel(r.due)}`, href:"#perf" });
   for (const [pid, p0] of Object.entries(S.polls || {})) if (!(S.myVotes || {})[pid] && !(p0.closes && p0.closes < S.today)) t.push({ t:`Answer the poll: ${p0.q}`, href:"#engage", info:true });
   for (const [tid, x] of Object.entries(S.myTickets || {})) if (x.status === "answered") t.push({ t:`Your help desk ticket was answered: ${x.subject}`, href:"#help" });
+  { const pp = polPending(S.uid); if (pp.length && (S.policies || []).length) t.push({ t: pp.length === (S.policies || []).length ? `Read and accept the ${pp.length} company policies` : `Read and accept ${pp.length} more polic${pp.length === 1 ? "y" : "ies"} (${pp.map(p => p.code.replace("ATR-HR-", "")).join(", ")})`, href:"#docs", red: pp.length > 0 }); }
   for (const l of ((S.myLife && S.myLife.letters) || [])) if (l.needsAccept && !l.acceptedAt) t.unshift({ t:`Read and accept your ${l.title.toLowerCase()}`, href:"#onboard", red:true });
   if (S.myExit && S.myExit.stage === "notice" && !S.myExit.handoverNote) t.unshift({ t:`Submit your handover (last working day ${dLong(S.myExit.lwd)})`, href:"#onboard", red:true });
   { const me = S.cur ? summarize(S.curYM, S.cur, S.uid) : null; if (me && me.late >= Number(P.lateWarn)) t.push({ t:`Written reminder: ${me.late} late marks this month (ATR-HR-02). Punch in by ${t12(P.flexTo)}.`, href:"#me", info:true }); }
@@ -4061,8 +4092,67 @@ function renderDirectory(){
   host.replaceChildren(h("div", { class:"tree-wrap" }, h("ul", { class:"tree" }, ...(kids._root || []).map(id => node(id, 0)))));
 }
 // ---- documents
+// ---------- embedded policies (config/policies) · acceptance stored on att/<uid>.policyAck ----------
+const polAck = id => ((rootOf(id) || {}).policyAck) || {};
+const polVer = p => String(p.version || "").split(" ")[0];
+const polAccepted = (id, p) => { const a = polAck(id)[p.code]; return a && a.v === polVer(p) ? a : null; };
+const polPending = id => (S.policies || []).filter(p => !polAccepted(id, p));
+function polBlocks(p){
+  const out = [];
+  for (const b of p.blocks || []) {
+    if (b.t === "h") out.push(h("h4", { text: b.x }));
+    else if (b.t === "p") out.push(h("p", { text: b.x }));
+    else if (b.t === "note") out.push(h("p", { class:"pnote", text: b.x.replace(/on greytHR/g, "in Atraski People") }));
+    else if (b.t === "ul" || b.t === "ol") out.push(h(b.t, null, ...b.items.map(x => h("li", { text: x }))));
+    else if (b.t === "table") { const [head, ...rows] = b.rows; out.push(h("div", { class:"ptbl" }, h("table", null, h("thead", null, h("tr", null, ...head.map(c => h("th", { text: c })))), h("tbody", null, ...rows.map(r => h("tr", null, ...r.map(c => h("td", { text: c })))))))); }
+  }
+  return out;
+}
+function openPolicy(code){ S.polOpen = S.polOpen === code ? null : code; renderDocs(); if (S.polOpen) setTimeout(() => { const r = $("#polReader"); if (r) r.scrollIntoView({ behavior:"smooth", block:"start" }); }, 30); }
+async function acceptPolicy(p){
+  if (!S.uid || !S.rootExists) { toast("Open the punch clock once first, then accept."); return; }
+  try { await enqueue(() => rootRef().update({ policyAck: { [p.code]: { v: polVer(p), at: Date.now() } } })); toast(`${p.code} accepted`); }
+  catch { toast("Couldn't save. Try again."); }
+}
+function renderPolicies(){
+  const ps = S.policies || [], pend = polPending(S.uid);
+  const sig = JSON.stringify([ps.length, S.polOpen, polAck(S.uid), canCirculate(), P.v4From, canCirculate() ? teamIds().map(id => [id, polAck(id)]) : 0]);
+  if (sig === S.polSig) return; S.polSig = sig;   // only redraw when something changed (the page refreshes every second)
+  $("#polPanel").hidden = !ps.length;
+  $("#polMine").className = "pill " + (pend.length ? "c-pending" : "c-approved");
+  $("#polMine").textContent = ps.length ? (pend.length ? `${ps.length - pend.length} of ${ps.length} accepted` : "All accepted") : "";
+  $("#polList").replaceChildren(...ps.map(p => { const a = polAccepted(S.uid, p);
+    return h("button", { class:"pol-card", type:"button", onclick: () => openPolicy(p.code), "aria-expanded": String(S.polOpen === p.code) },
+      h("div", { class:"row between" }, h("span", { class:"code", text: `${p.code} · ${p.cat || ""}` }), h("span", { class:"pill " + (a ? "c-approved" : "c-pending"), text: a ? "Accepted" : "To read" })),
+      h("div", { class:"t", text: p.title }), h("div", { class:"s", text: p.summary })); }));
+  const p = ps.find(x => x.code === S.polOpen), rd = $("#polReader");
+  rd.hidden = !p;
+  if (p) {
+    const a = polAccepted(S.uid, p), v4 = p.code === "ATR-HR-03" && P.v4From;
+    rd.replaceChildren(
+      h("div", { class:"row between" }, h("div", null, h("span", { class:"eyebrow", text: `${p.code} · ${p.cat || ""}` }), h("h3", { text: p.title })), h("button", { class:"btn sm", type:"button", onclick: () => openPolicy(p.code), text:"Close" })),
+      h("p", { style:"font-weight:600", text: p.summary }),
+      h("div", { class:"meta-grid" }, ...[["Version", p.version], ["Effective from", p.effective], ["Owner", p.owner], ["Approved by", p.approved]].map(([k, v]) => h("div", null, h("b", { text: k.toUpperCase() }), v || "—"))),
+      p.replaces ? h("p", { class:"pnote", text: `Replaces: ${p.replaces}` }) : null,
+      v4 ? h("div", { class:"banner", text: `Leave revision ATR-HR-03 v4.0 applies to leave from ${dLong(P.v4From)}: separate sick leave at half pay, EL after 4 months, CL up to 3 days in a row, and the sandwich rule for CL/EL and unexcused absence only. The app applies it automatically from that date.` }) : null,
+      ...polBlocks(p),
+      h("div", { class:"accept" }, a ? h("span", { class:"pill c-approved", text: `You accepted v${a.v} on ${dLong(ymd(new Date(a.at)))}` }) : h("button", { class:"btn primary", type:"button", onclick: () => acceptPolicy(p), text:"I have read and accept" }),
+        canCirculate() && p.file ? h("a", { class:"btn sm", href: p.file, target:"_blank", rel:"noopener", text:"Original PDF" }) : null));
+  }
+  // CEO / HR tracker
+  const tr = $("#polTrack"); tr.hidden = !(canCirculate() && ps.length);
+  if (!tr.hidden) {
+    const ids = teamIds().filter(id => !person(id).exited && !/^s_/.test(id));
+    const rows = ids.map(id => ({ id, pend: polPending(id) })).sort((x, y) => y.pend.length - x.pend.length || nameOf(x.id).localeCompare(nameOf(y.id)));
+    const done = rows.filter(r => !r.pend.length).length;
+    $("#polTrackSum").textContent = `${done} of ${rows.length} people have accepted all ${ps.length}`;
+    $("#polTrackBody").replaceChildren(...rows.map(r => h("tr", null, h("td", { text: nameOf(r.id) + (person(r.id).prefilled && /^e_/.test(r.id) ? " (not signed up yet)" : "") }),
+      h("td", { text: `${ps.length - r.pend.length} / ${ps.length}` }), h("td", { class:"muted", text: r.pend.length ? r.pend.map(p => p.code.replace("ATR-HR-", "")).join(", ") : "—" }))));
+  }
+}
 function renderDocs(){
   if ($("#v-docs").hidden) return;
+  renderPolicies();
   const isAdm = effRole() === "admin"; $("#docAdmin").hidden = !isAdm;
   const cats = [...new Set(S.docs.map(d => d.cat || "Other"))];
   $("#docList").replaceChildren(...(S.docs.length ? cats.map(c => h("div", { class:"stack", style:"gap:6px" }, h("span", { class:"eyebrow", text:c }),
@@ -4175,6 +4265,7 @@ async function init(){
   db.doc("config/policy").onSnapshot(s => { clearTimeout(loadTimer); S.stale = false; loadPolicy(s.data()); fillPolicy(); renderAll(); }, () => clearTimeout(loadTimer));
   db.doc("config/announce").onSnapshot(s => { S.announce = (s.data() && s.data().items) || []; renderHome(); }, () => {});
   db.doc("config/docs").onSnapshot(s => { S.docs = (s.data() && s.data().items) || []; renderDocs(); }, () => {});
+  db.doc("config/policies").onSnapshot(s => { S.policies = (s.data() && s.data().items) || []; S.polSig = null; renderDocs(); navBadges(); }, () => {});
   db.doc("config/perf").onSnapshot(s => { S.cycles = (s.data() && s.data().cycles) || {}; S.cyclesExist = s.exists;
     const lc = latestCycle(); if (lc && !S.pfPicked && lc !== S.pfPeriod) { S.pfPeriod = lc; S.pfDraft = null; subPerf(); }
     renderPerf(); renderHome(); navBadges(); }, () => {});
