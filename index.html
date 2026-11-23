@@ -1109,6 +1109,13 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
       </table></div>
       <p class="muted" style="margin:0;font-size:12px;max-width:95ch" id="prFoot"></p>
     </div>
+    <div class="panel stack" id="phPanel" hidden>
+      <div class="row between"><div><span class="eyebrow">CEO only · from the old PAYRUN sheet</span><h2>Pay history before Atraski People</h2></div><div class="row" id="phPills"></div></div>
+      <p class="muted" style="margin:0;font-size:13px;max-width:90ch" id="phNote"></p>
+      <div class="row" style="gap:6px;flex-wrap:wrap" id="phMonths"></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><input id="phQ" placeholder="Search name or department" style="max-width:260px"><label class="row" style="gap:6px;font-size:13px"><input type="checkbox" id="phCur" style="width:auto;margin:0"> Current staff only</label></div>
+      <div class="tbl-wrap"><table class="ppl" style="min-width:820px"><thead><tr><th>Name</th><th>Office</th><th>Dept</th><th>Monthly</th><th>Days in month</th><th>LOP days</th><th>Paid days</th><th>Net paid</th></tr></thead><tbody id="phBody"></tbody></table></div>
+    </div>
     <div class="panel stack" id="prImportPanel">
       <div><span class="eyebrow">Employee Master</span><h2>Import salaries</h2></div>
       <p class="muted" style="margin:0;font-size:13px;max-width:80ch">Paste two columns from the Payrun Workbook's Employee Master: Employee ID and Monthly Salary. Rows are matched to the employee codes set on the People page. Bank details stay in the workbook; this tool doesn't store them.</p>
@@ -3436,8 +3443,30 @@ async function savePay(id, patch){
   try { await enqueue(() => S.pay[id] ? ref.update(patch) : ref.set(patch)); }
   catch { toast("Couldn't save the salary."); }
 }
+// ---------- pay history imported from the old PAYRUN sheet (payruns/oldsheet, CEO only) ----------
+function renderPayHist(){
+  const pan = $("#phPanel"); if (!pan) return;
+  const d = S.payHist, ms = d && d.months ? Object.keys(d.months).sort() : [];
+  pan.hidden = !S.owner || !ms.length; if (pan.hidden || $("#v-payrun").hidden) return;
+  if (pan.contains(document.activeElement) && document.activeElement.id === "phQ" && S.phSig === ($("#phQ").value + S.phYM)) return;
+  if (!S.phYM || !d.months[S.phYM]) S.phYM = ms[ms.length - 1];
+  const C = d.cols, ix = Object.fromEntries(C.map((c, i) => [c, i])), m = d.months[S.phYM];
+  const q = ($("#phQ").value || "").toLowerCase(), cur = $("#phCur").checked;
+  const rows = m.rows.filter(r => (!cur || r[ix.id]) && (!q || (r[ix.name] + " " + r[ix.dept]).toLowerCase().includes(q)));
+  const tot = rows.reduce((a, r) => a + (Number(r[ix.net]) || 0), 0), lop = rows.reduce((a, r) => a + (Number(r[ix.lop]) || 0), 0);
+  $("#phMonths").replaceChildren(...ms.map(k => h("button", { class:"btn sm" + (k === S.phYM ? " primary" : ""), type:"button", onclick: () => { S.phYM = k; renderPayHist(); }, text: ymLabel(k) })));
+  $("#phPills").replaceChildren(h("span", { class:"pill", text: rows.length === 1 ? "1 person" : `${rows.length} people` }), h("span", { class:"pill c-approved", text:`Net ${inr(Math.round(tot))}` }), h("span", { class:"pill", text:`${num1(lop)} LOP days` }));
+  $("#phNote").textContent = `Carried over from "${d.source}" so the old sheet is no longer needed. ${m.note ? m.note + ". " : ""}Net paid is the sheet's figure, or salary × paid days ÷ days in month where the sheet left it blank. Bank details were not copied. Pay runs from December 2026 are done in the Pay run above.`;
+  $("#phBody").replaceChildren(...rows.map(r => h("tr", null,
+    h("td", null, h("div", { style:"font-weight:600", text: r[ix.id] ? nameOf(r[ix.id]) : r[ix.name] }), h("div", { class:"meta muted", text: [r[ix.des], r[ix.id] ? "" : "left"].filter(Boolean).join(" · ") })),
+    h("td", { text: r[ix.office] || "—" }), h("td", { text: r[ix.dept] || "—" }), h("td", { text: r[ix.salary] != null ? inr(r[ix.salary]) : "—" }),
+    h("td", { text: r[ix.working] ?? "—" }), h("td", { text: r[ix.lop] ? num1(r[ix.lop]) : "0" }), h("td", { text: r[ix.paidDays] != null ? num1(r[ix.paidDays]) : "—" }),
+    h("td", null, h("b", { class:"mono", text: r[ix.net] != null ? inr(Math.round(r[ix.net])) : "—" })))));
+  S.phSig = ($("#phQ").value || "") + S.phYM;
+}
 function renderPayrun(){
   if (!S.owner || $("#v-payrun").hidden) return;
+  renderPayHist();
   if ($("#v-payrun").contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName) && document.activeElement.id !== "prMonth") return;
   const ym = S.prYM, locked = S.prDoc && S.prDoc.status === "locked";
   $("#prTitle").textContent = `Pay run · ${ymLabel(ym)}`;
@@ -4374,6 +4403,9 @@ async function init(){
   if (S.admin || S.finance) db.collection("finance").onSnapshot(qs => { S.finDec = {}; for (const d of qs.docs) S.finDec[d.id] = d.data(); renderAll(); }, () => {});
   if (S.owner || S.finance) subPayCheck();
   document.addEventListener("input", e => { if (e.target && e.target.id === "arcQ") renderArchive(true); });
+  document.addEventListener("input", e => { if (e.target && e.target.id === "phQ") renderPayHist(); });
+  document.addEventListener("change", e => { if (e.target && e.target.id === "phCur") renderPayHist(); });
+  db.doc("payruns/oldsheet").onSnapshot(s => { S.payHist = s.data() || null; renderPayHist(); }, () => {});
   db.doc("archive/fnf").onSnapshot(s => { S.arcFnf = s.data() || null; renderArchive(); }, () => {});
   db.doc("archive/past").onSnapshot(s => { S.arcPast = s.data() || null; renderArchive(); }, () => {});
   db.doc("config/automation").onSnapshot(s => { S.auto = { autoApprove:true, autoCycles:true, driveNightly:true, ...(s.data() || {}) }; renderDrivePanel(); }, () => {});
