@@ -1,0 +1,6 @@
+-- Applied to the live project as migration "joining_codes_auto_link".
+-- private.join_codes holds one 8-character code per pre-filled staff record (e_*).
+-- public.join_codes_list() / public.join_code_reset(pre): CEO only.
+-- private.handle_new_user(): a sign-up whose metadata carries a valid unused join_code
+-- is approved (member, or admin for managers) and linked to that record via private.link_core().
+-- public.link_member() keeps the CEO's manual link and now shares private.link_core().
