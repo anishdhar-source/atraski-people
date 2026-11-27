@@ -1732,7 +1732,7 @@ const ROLE_INFO = {
 function realRole(){ if (S.owner || S.hr) return "admin"; if (S.admin) return roleOf(S.uid) === "admin" ? "admin" : "manager"; const r0 = roleOf(S.uid); return r0 === "finance" ? "employee" : r0; }
 function effRole(){ const rr = realRole(); return rr === "admin" && S.viewAs.role ? S.viewAs.role : rr; }
 function mgrId(){ return S.viewAs.role === "manager" && S.viewAs.mgr ? S.viewAs.mgr : S.uid; }
-function teamIds(){ return Object.keys(S.team).sort((a,b) => nameOf(a).localeCompare(nameOf(b))); }
+function teamIds(){ return Object.keys(S.team).filter(id => !(S.ppl[id] && S.ppl[id].exited)).sort((a,b) => nameOf(a).localeCompare(nameOf(b))); }
 function scopeIds(){
   const role = effRole(), all = teamIds();
   if (role === "admin") return all;
@@ -4180,7 +4180,7 @@ function renderDirectory(){
   const ds = $("#dirDept"); if (ds.options.length <= 1) ds.append(...DEPTS.map(d => h("option", { value:d, text:d })));
   $("#dirCards").setAttribute("aria-pressed", String(S.dirView === "cards")); $("#dirTree").setAttribute("aria-pressed", String(S.dirView === "tree"));
   const q = $("#dirQ").value.trim().toLowerCase(), dept = ds.value;
-  const ids = Object.keys(S.ppl).filter(id => S.ppl[id] && (S.ppl[id].pos || S.ppl[id].role || S.ppl[id].dept || S.ppl[id].manager)).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+  const ids = Object.keys(S.ppl).filter(id => S.ppl[id] && !S.ppl[id].exited && (S.ppl[id].pos || S.ppl[id].role || S.ppl[id].dept || S.ppl[id].manager)).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
   const match = id => { const p = person(id); return (!dept || p.dept === dept) && (!q || [nameOf(id), p.pos, p.dept, companyOf(id), p.code].join(" ").toLowerCase().includes(q)); };
   const card = id => { const p = person(id), mg = mgrOf(id);
     return h("div", { class:"pcard" }, h("div", { class:"who" }, avatar(id) || h("span", { class:"avatar-ph", text: nameOf(id)[0] }), h("div", { style:"min-width:0" }, h("div", { style:"font-weight:600", text: nameOf(id) }), h("div", { class:"meta", text: p.pos || "—" }))),
