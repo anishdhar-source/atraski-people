@@ -1457,13 +1457,13 @@ let wq = Promise.resolve(); const enqueue = fn => { const p = wq.then(fn); wq = 
 const POS = [
  ["Leadership & Business","Founder & CEO","Senior Leadership","employee","1","—",0],
  ["Leadership & Business","BD Manager","Senior","employee","1","Founder & CEO",90],
+ ["Founder's Office","Founder's Office Intern","Entry","intern","1","Founder & CEO",0],
  ["Operations","Operations Head","Senior Leadership","employee","1","Founder & CEO",90],
  ["Operations","Operations Manager","Senior Leadership","employee","1","Operations Head",90],
  ["Brand Servicing","Senior Account Manager (Brand POC)","Mid","employee","1","Operations Manager",60],
  ["Brand Servicing","Own Brands Manager (Brand POC)","Mid","employee","1","Operations Manager",60],
  ["Brand Servicing","Account Manager (Brand POC), Delhi","Mid","employee","1","Operations Manager",60],
  ["Brand Servicing","Account Manager (Brand POC), Kolkata","Mid","employee","2","Operations Head",60],
- ["Brand Servicing","Account Management Intern","Entry","intern","1","Founder & CEO",0],
  ["Creative Studio","Studio Lead","Senior Leadership","employee","1","Operations Manager",90],
  ["Creative Studio","Senior Graphic Designer","Senior","employee","1","Studio Lead",60],
  ["Creative Studio","Graphic Designer, Delhi","Mid","employee","2","Senior Graphic Designer",60],
@@ -1480,7 +1480,7 @@ const POS = [
  ["Performance Marketing","Marketing Intern","Entry","intern","1","Founder & CEO",0],
  ["Finance","Accounts Executive","Mid","employee","1","Founder & CEO",60],
  ["HR","HR Executive","Mid","employee","1","Founder & CEO",60],
- ["HR","HR Intern, Delhi","Entry","intern","1","Account Management Intern",0],
+ ["HR","HR Intern, Delhi","Entry","intern","1","Founder's Office Intern",0],
 ].map(([dept,pos,band,etype,hc,reports,prob]) => ({ dept, pos, band, etype, hc, reports, prob }));
 const DEPTS = [...new Set(POS.map(p => p.dept))];
 const posInfo = name => POS.find(p => p.pos === name) || null;
