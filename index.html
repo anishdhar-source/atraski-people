@@ -803,8 +803,8 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
   <!-- STRUCTURE -->
   <section id="v-org" class="stack" hidden>
     <div class="panel stack">
-      <div class="row between"><div><span class="eyebrow">HR Master · FY 2026-27</span><h2>Organisation structure</h2></div><span class="muted" id="orgSummary" style="font-size:13px"></span></div>
-      <p class="muted" style="margin:0;font-size:13px">Every position from the HR Master Position index, with its band, reporting line, probation and target headcount, and the people now in it. Assign people to positions on the People page.</p>
+      <div class="row between"><div><span class="eyebrow">Atraski · At Buzz · November 2026</span><h2>Organisation structure</h2></div><span class="muted" id="orgSummary" style="font-size:13px"></span></div>
+      <p class="muted" style="margin:0;font-size:13px">Every role at Atraski and At Buzz as set in the November 2026 Employee Mapping: who holds it, who they report to, and the seats still open. Change a person's role and manager on the Employee records page.</p>
       <div class="depts" id="depts"></div>
       <div id="unassigned"></div>
     </div>
@@ -1418,40 +1418,34 @@ const atStart = ds => { const x = parseD(ds); const [a,b] = (P.flexFrom || "09:0
 let toastT; function toast(msg){ const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); }
 let wq = Promise.resolve(); const enqueue = fn => { const p = wq.then(fn); wq = p.catch(() => {}); return p; };
 
-// ---------- organisation (HR Master Position index, FY 2026-27) ----------
+// ---------- organisation: Atraski / At Buzz roles from the November 2026 Employee Mapping ----------
 const POS = [
- ["Operations","Operations Head / Account Director","Senior Leadership","employee","1","Founder",90],
- ["Operations","Senior Account Manager","Senior","employee","2","Operations Head",90],
- ["Operations","Account Manager","Mid","employee","3–4","Senior AM / Ops Head",60],
- ["Operations","Account Manager Trainee","Trainee","trainee","3–4","Account Manager",30],
- ["Operations","Account Management Intern","Entry","intern","2–3","Account Manager",0],
- ["Operations","Client Servicing Executive","Mid","employee","2","Account Manager",60],
- ["Growth","Growth Head / Lead","Senior Leadership","employee","1","Founder",90],
- ["Growth","Growth Executive (Performance Marketing)","Mid","employee","2–3","Growth Head",60],
- ["Growth","Growth Trainee","Trainee","trainee","2–3","Growth Executive",30],
- ["Growth","Growth Intern","Entry","intern","2","Growth Executive",0],
- ["Growth","SEO / Content Executive","Mid","employee","1–2","Growth Head",60],
- ["Creative","Creative Head / Art Director","Senior Leadership","employee","1","Founder",90],
- ["Creative","Senior Graphic Designer","Senior","employee","1–2","Creative Head",60],
- ["Creative","Graphic Designer","Mid","employee","2–3","Creative Head / Sr. Designer",60],
- ["Creative","Graphic Designer Trainee","Trainee","trainee","2","Graphic Designer",30],
- ["Creative","Graphic Design Intern","Entry","intern","2–3","Graphic Designer",0],
- ["Creative","Video Editor","Mid","employee","1–2","Creative Head",60],
- ["Creative","Video Editor Intern","Entry","intern","1","Video Editor",0],
- ["Web","Tech Lead / Web Development Head","Senior","employee","1","Founder",90],
- ["Web","Senior Web Developer","Senior","employee","1","Tech Lead",60],
- ["Web","Web Developer","Mid","employee","1–2","Tech Lead / Sr. Developer",60],
- ["Web","Web Developer Trainee","Trainee","trainee","1–2","Web Developer",30],
- ["Web","Web / UI Intern","Entry","intern","1–2","Web Developer",0],
- ["Finance","Finance Head / Senior Accountant","Senior","employee","1","Founder",90],
- ["Finance","Finance Executive / Accountant","Mid","employee","1","Finance Head",60],
- ["Finance","Finance Intern","Entry","intern","1","Finance Executive",0],
- ["HR","HR Manager","Senior","employee","1","Founder",90],
- ["HR","HR Executive","Mid","employee","1","HR Manager",60],
- ["HR","HR Intern","Entry","intern","1","HR Executive",0],
- ["Content / SEO","Content Head / SEO Strategist","Senior","employee","1","Founder / Growth Head",60],
- ["Content / SEO","Content Writer","Mid","employee","1–2","Content Head",60],
- ["Content / SEO","Content / Copywriting Intern","Entry","intern","1–2","Content Writer",0],
+ ["Leadership & Business","Founder & CEO","Senior Leadership","employee","1","—",0],
+ ["Leadership & Business","Head of Operations","Senior Leadership","employee","1","Founder & CEO",90],
+ ["Leadership & Business","BD Manager","Senior","employee","1","Founder & CEO",90],
+ ["Account Management","Kolkata Lead + Kolkata BD","Senior Leadership","employee","1","Head of Operations",90],
+ ["Account Management","Senior AM + Delhi process lead","Senior","employee","1","Head of Operations",90],
+ ["Account Management","Own Brands Manager","Mid","employee","1","Head of Operations",60],
+ ["Account Management","Account Manager, Delhi","Mid","employee","1","Head of Operations",60],
+ ["Account Management","Account Manager, Kolkata","Mid","employee","2","Kolkata Lead",60],
+ ["Account Management","Account Management Intern","Entry","intern","1","Founder & CEO",0],
+ ["Creative Studio","Studio Lead","Senior Leadership","employee","1","Head of Operations",90],
+ ["Creative Studio","Senior Graphic Designer","Senior","employee","1","Studio Lead",60],
+ ["Creative Studio","Graphic Designer, Delhi","Mid","employee","2","Senior Graphic Designer",60],
+ ["Creative Studio","Graphic Designer, Kolkata","Mid","employee","3","Studio Lead",60],
+ ["Production","Production & Video Lead","Senior","employee","1","Head of Operations",60],
+ ["Production","Production Executive","Trainee","trainee","1","Production & Video Lead",30],
+ ["Web & SEO","Web & SEO Lead","Senior","employee","1","Head of Operations",90],
+ ["Web & SEO","Full Stack Developer","Mid","employee","1","Web & SEO Lead",60],
+ ["Web & SEO","Web Developer (support)","Entry","intern","1","Web & SEO Lead",0],
+ ["Web & SEO","Web Development Intern","Entry","intern","1","Web & SEO Lead",0],
+ ["Performance Marketing","Performance Marketing Lead","Senior","employee","1","Head of Operations",60],
+ ["Performance Marketing","Performance Marketing Specialist","Mid","employee","1","Head of Operations",60],
+ ["Performance Marketing","Influencer Marketing Trainee","Trainee","trainee","1","Head of Operations",30],
+ ["Performance Marketing","Marketing Intern","Entry","intern","1","Founder & CEO",0],
+ ["Finance","Accounts Executive","Mid","employee","1","Founder & CEO",60],
+ ["HR","HR Executive","Mid","employee","1","Founder & CEO",60],
+ ["HR","HR Intern, Delhi","Entry","intern","1","Account Management Intern",0],
 ].map(([dept,pos,band,etype,hc,reports,prob]) => ({ dept, pos, band, etype, hc, reports, prob }));
 const DEPTS = [...new Set(POS.map(p => p.dept))];
 const posInfo = name => POS.find(p => p.pos === name) || null;
@@ -3068,14 +3062,14 @@ function renderOrg(){
     const rows = POS.filter(p => p.dept === dept);
     const actual = rows.reduce((n, p) => n + (byPos[p.pos] || []).length, 0), tmin = rows.reduce((n, p) => n + parseInt(p.hc, 10), 0);
     filled += actual; target += tmin;
-    return h("div", { class:"dept" }, h("div", { class:"row between" }, h("h3", { text: dept }), h("span", { class:"hc " + (actual >= tmin ? "ok" : "short"), text: `${actual} / ${tmin}+ people` })),
+    return h("div", { class:"dept" }, h("div", { class:"row between" }, h("h3", { text: dept }), h("span", { class:"hc " + (actual >= tmin ? "ok" : "short"), text: `${actual} / ${tmin} people` })),
       ...rows.map(p => { const who = byPos[p.pos] || [], n = parseInt(p.hc, 10);
         return h("div", { class:"posrow" }, h("div", { style:"min-width:0" }, h("div", { style:"font-weight:600", text: p.pos }),
             h("div", { class:"meta muted", text: `${p.band} · ${ETYPE[p.etype]} · reports to ${p.reports}${p.prob ? ` · ${p.prob}-day probation` : ""}` }),
             who.length ? h("div", { class:"who-list" }, ...who.map(id => h("span", { class:"chip", text: nameOf(id) }))) : null),
-          h("span", { class:"hc " + (who.length >= n ? "ok" : "short"), text: `${who.length} / ${p.hc}` })); }));
+          h("span", { class:"hc " + (who.length >= n ? "ok" : "short"), text: who.length >= n ? `${who.length} / ${p.hc}` : `${who.length} / ${p.hc} · ${n - who.length} open` })); }));
   }));
-  $("#orgSummary").textContent = `${filled} of ${target}+ target seats filled · ${ids.length} people on the punch clock`;
+  $("#orgSummary").textContent = `${filled} of ${target} seats filled · ${target - filled > 0 ? (target - filled) + " open" : "none open"}`;
   const un = ids.filter(id => !person(id).pos);
   $("#unassigned").replaceChildren(...(un.length ? [h("div", { class:"stack", style:"gap:6px" }, h("span", { class:"eyebrow", text:`No position yet (${un.length})` }), h("div", { class:"who-list", style:"display:flex;flex-wrap:wrap;gap:4px" }, ...un.map(id => h("span", { class:"chip", text: nameOf(id) }))))] : []));
 }
