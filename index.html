@@ -21,7 +21,7 @@ const SB_KEY = "sb_publishable_9lZzAiUW_67brwNbQh8o7w_2hP8q-Vi";
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
 let readyResolve; const ready = new Promise(r => readyResolve = r);
 const ctx = { uid: null, name: "", role: "pending" };
-const lvl = () => ({ owner: 4, hr: 3, admin: 3, member: 2, finance: 2 })[ctx.role] || 0;
+const lvl = () => ({ owner: 4, hr: 3, hr_team: 3, admin: 3, member: 2, finance: 2, finance_team: 2 })[ctx.role] || 0;
 
 // ---------- tiny DOM helper ----------
 function el(tag, props, ...kids){ const e = document.createElement(tag); for (const [k, v] of Object.entries(props || {})) { if (v == null || v === false) continue; if (k === "class") e.className = v; else if (k === "text") e.textContent = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v === true ? "" : v); } for (const c of kids.flat()) if (c != null && c !== false) e.append(c instanceof Node ? c : document.createTextNode(String(c))); return e; }
@@ -57,6 +57,18 @@ const css = `
 #accessDlg .card{width:100%;max-width:720px;max-height:85vh;overflow:auto;background:var(--surface,#fff);border-radius:16px;padding:20px;display:grid;gap:12px;color:var(--ink,#151A2D)}
 #accessDlg table{width:100%;border-collapse:collapse;font-size:13px} #accessDlg td,#accessDlg th{padding:8px;border-bottom:1px solid var(--line,#DDE1E9);text-align:left}
 #accessDlg select{padding:5px 8px;border-radius:8px;border:1px solid var(--line,#DDE1E9);background:var(--surface,#fff);color:inherit}
+#accessDlg .card.wide{max-width:860px}
+#accessDlg .depts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+#accessDlg .dept{border:1px solid var(--line,#DDE1E9);border-radius:12px;padding:14px;display:grid;gap:8px;align-content:start;min-width:0}
+#accessDlg .dept h3{margin:0;font-size:16px}
+#accessDlg .dept select{width:100%}
+#accessDlg .lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#5C6479)}
+#accessDlg .hint{margin:0;font-size:12px;line-height:1.5;color:var(--muted,#5C6479)}
+#accessDlg .chips{display:flex;flex-wrap:wrap;gap:6px}
+#accessDlg .chip{display:inline-flex;align-items:center;gap:6px;background:var(--sunk,#EBEDF2);border-radius:999px;padding:3px 6px 3px 10px;font-size:13px}
+#accessDlg .chip button{border:0;background:none;cursor:pointer;font-size:15px;line-height:1;color:var(--muted,#5C6479);padding:0 4px}
+#accessDlg .tag{font-size:12px;font-weight:600;background:var(--sunk,#EBEDF2);border-radius:999px;padding:3px 10px}
+#accessDlg .muted{color:var(--muted,#5C6479);font-size:13px}
 `;
 document.head.append(el("style", { text: css }));
 let gate = null;
@@ -183,7 +195,7 @@ const db = { doc: docRef, collection: colRef };
 const user = {
   isOwner: async () => ctx.role === "owner",
   canEdit: async () => lvl() >= 3,
-  can: async n => n === "data.write" ? lvl() >= 2 : n === "files.write" || n === "assets.write" ? lvl() >= 3 : n === "finance" ? ctx.role === "finance" : n === "hr" ? ctx.role === "hr" : false,
+  can: async n => n === "data.write" ? lvl() >= 2 : n === "files.write" || n === "assets.write" ? lvl() >= 3 : n === "finance" ? (ctx.role === "finance" || ctx.role === "finance_team") : n === "finance_head" ? ctx.role === "finance" : n === "hr" ? ctx.role === "hr" : n === "hr_team" ? ctx.role === "hr_team" : false,
   id: async () => ctx.uid,
   name: async () => ctx.name,
   avatarUrl: async () => avatarOf(ctx.name, ctx.uid),
@@ -215,21 +227,60 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistrations().the
 if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k))).catch(() => {});
 function refreshAccessBadge(){ if (!accessBtn) return; const n = [...members.values()].filter(m => m.role === "pending").length; accessBtn.replaceChildren("Access", n ? el("span", { class: "b", text: n }) : ""); }
 async function openAccess(){
+  const old = document.getElementById("accessDlg"); if (old) old.remove();
   const { data, error } = await sb.rpc("list_members");
-  const dlg = el("div", { id: "accessDlg", onclick: e => { if (e.target === dlg) dlg.remove(); } });
-  const card = el("div", { class: "card", role: "dialog", "aria-label": "Access" });
-  const label = { pending: "No access", member: "Employee", finance: "Finance", admin: "Manager", hr: "HR", owner: "Owner (CEO)" };
-  const rows = (data || []).map(m => {
-    const sel = el("select", { "aria-label": `Access for ${m.name}`, disabled: m.role === "owner" || m.user_id === ctx.uid,
-      onchange: async e => { const was = m.role; const { error: er } = await sb.from("members").update({ role: e.target.value }).eq("user_id", m.user_id); if (er) { alertMsg.textContent = er.message; e.target.value = m.role; } else { alertMsg.textContent = `${m.name}: ${label[e.target.value]}`; if (was === "hr" || e.target.value === "hr") drive.call({ op: "share_hr" }).then(x => { alertMsg.textContent += ` · Drive folders ${x.added ? "shared with" : "updated for"} HR`; }, () => { alertMsg.textContent += " · Drive sharing will update in tonight’s run"; }); m.role = e.target.value; await loadMembers(); refreshAccessBadge(); } } },
-      ...["pending", "member", "finance", "admin", ...(ctx.role === "owner" || m.role === "hr" ? ["hr"] : []), ...(m.role === "owner" ? ["owner"] : [])].map(r => el("option", { value: r, selected: m.role === r, text: label[r] })));
-    return el("tr", null, el("td", null, el("b", { text: m.name || "—" })), el("td", { text: m.email || "" }), el("td", { text: new Date(m.created_at).toLocaleDateString("en-IN") }), el("td", null, sel));
+  const list = data || [], isCEO = ctx.role === "owner";
+  const label = { pending: "No access", member: "Employee", admin: "Manager", hr: "HR Coordinator", hr_team: "HR team", finance: "Finance Coordinator", finance_team: "Finance team", owner: "CEO" };
+  const msg = el("div", { style: "font-size:13px;color:var(--muted,#5C6479);min-height:18px", role: "status" });
+  const setRole = async (m, role, note) => {
+    const { error: er } = await sb.from("members").update({ role }).eq("user_id", m.user_id);
+    if (er) { msg.textContent = er.message; return; }
+    await openAccess(); const st = document.querySelector("#accessDlg [role=status]"); if (st) st.textContent = note || `${m.name}: ${label[role]}`;
+    if (refreshAccessBadge) try { refreshAccessBadge(); } catch {}
+  };
+  const named = m => m.name || m.email || "—";
+  const pickable = list.filter(m => m.role !== "owner" && m.role !== "pending");
+  const dept = (key, title, coordText, teamText) => {
+    const coord = list.find(m => m.role === key), team = list.filter(m => m.role === key + "_team");
+    const box = el("div", { class: "dept" });
+    const head = el("div", { class: "dhead" }, el("h3", { text: title }));
+    const coordRow = isCEO
+      ? el("select", { id: "acc_" + key, "aria-label": `${title} coordinator`, onchange: e => { const m = list.find(x => x.user_id === e.target.value);
+            if (m) setRole(m, key, `${named(m)} is now the ${label[key]}${coord ? `. ${named(coord)} moved to the ${label[key + "_team"]}.` : "."}`);
+            else if (coord) setRole(coord, "member", `${named(coord)} is no longer the ${label[key]}.`); } },
+          el("option", { value: "", text: "No coordinator yet" }), ...pickable.filter(m => m.role !== key + "_team" || true).map(m => el("option", { value: m.user_id, selected: coord && coord.user_id === m.user_id, text: named(m) + (m.email ? " · " + m.email : "") })))
+      : el("div", { style: "font-weight:600", text: coord ? named(coord) : "No coordinator yet" });
+    const chips = el("div", { class: "chips" }, ...(team.length ? team.map(m => el("span", { class: "chip" }, named(m),
+        isCEO ? el("button", { type: "button", "aria-label": `Remove ${named(m)} from ${title} team`, onclick: () => setRole(m, "member", `${named(m)} removed from the ${label[key + "_team"]}.`), text: "×" }) : "")) : [el("span", { class: "muted", text: "Nobody yet" })]));
+    const add = isCEO ? el("select", { id: "acc_" + key + "_add", "aria-label": `Add someone to the ${title} team`, onchange: e => { const m = list.find(x => x.user_id === e.target.value); if (m) setRole(m, key + "_team", `${named(m)} added to the ${label[key + "_team"]}.`); } },
+        el("option", { value: "", text: "Add to team…" }), ...pickable.filter(m => m.role !== key && m.role !== key + "_team").map(m => el("option", { value: m.user_id, text: named(m) }))) : null;
+    box.append(head, el("div", { class: "lbl", text: "Coordinator (main access)" }), coordRow, el("p", { class: "hint", text: coordText }),
+      el("div", { class: "lbl", text: "Team (restricted access)" }), chips, add || "", el("p", { class: "hint", text: teamText }));
+    return box;
+  };
+  const deptRoles = ["hr", "hr_team", "finance", "finance_team", "owner"];
+  const rows = list.map(m => {
+    const fixed = deptRoles.includes(m.role) || m.user_id === ctx.uid;
+    const cell = fixed ? el("span", { class: "tag", text: label[m.role] || m.role })
+      : el("select", { "aria-label": `Access for ${named(m)}`, onchange: e => setRole(m, e.target.value) },
+          ...["pending", "member", "admin"].map(r => el("option", { value: r, selected: m.role === r, text: label[r] })));
+    return el("tr", null, el("td", null, el("b", { text: named(m) })), el("td", { text: m.email || "" }), el("td", { text: new Date(m.created_at).toLocaleDateString("en-IN") }), el("td", null, cell));
   });
-  const alertMsg = el("div", { style: "font-size:13px;color:var(--muted,#5C6479)", role: "status" });
-  card.append(el("div", { style: "display:flex;justify-content:space-between;align-items:center;gap:12px" }, el("h2", { style: "margin:0;font-size:18px", text: "Who can use the portal" }), el("button", { type: "button", onclick: () => dlg.remove(), style: "border:1px solid var(--line,#DDE1E9);background:none;border-radius:8px;padding:6px 12px;color:inherit", text: "Close" })),
-    el("p", { style: "margin:0;font-size:13px;color:var(--muted,#5C6479)", text: "New sign-ups wait here with no access. Employee: their own attendance, leave, travel, reviews and payslips. Finance: an employee who also verifies everyone's travel claims and invoices (no attendance, reviews or salaries). Manager: their team's records, approvals and reviews. HR: like a manager for everyone, and opens the KRA/KPI review form every 15 days (only the CEO can make someone HR). Only the CEO sees salaries and the pay run." }),
-    error ? el("div", { text: error.message }) : el("div", { style: "overflow:auto" }, el("table", null, el("thead", null, el("tr", null, el("th", { text: "Name" }), el("th", { text: "Email" }), el("th", { text: "Signed up" }), el("th", { text: "Access" }))), el("tbody", null, ...rows))),
-    alertMsg);
+  const dlg = el("div", { id: "accessDlg", onclick: e => { if (e.target === dlg) dlg.remove(); } });
+  const card = el("div", { class: "card wide", role: "dialog", "aria-label": "Access" });
+  card.append(
+    el("div", { style: "display:flex;justify-content:space-between;align-items:center;gap:12px" }, el("h2", { style: "margin:0;font-size:18px", text: "Who can use the portal" }),
+      el("button", { type: "button", onclick: () => dlg.remove(), style: "border:1px solid var(--line,#DDE1E9);background:none;border-radius:8px;padding:6px 12px;cursor:pointer", text: "Close" })),
+    error ? el("div", { text: error.message }) : el("div", { class: "depts" },
+      dept("hr", "HR", "Everything HR runs: employee records and joining codes, personal documents, hiring, exits and letters, policies and help desk. No salaries.",
+        "Attendance, leave, WFH and approvals for everyone, and team reports. No personal documents, hiring, exits or salaries."),
+      dept("finance", "Finance", "Verifies travel claims and invoices, manages loans and advances, and checks the monthly pay run before it is locked. Sees pay-run totals only when sent for checking.",
+        "Verifies travel claims and invoices only. No pay-run check, loans or salaries.")),
+    isCEO ? "" : el("p", { class: "hint", text: "Only the CEO can change HR and Finance access." }),
+    el("h3", { style: "margin:4px 0 0;font-size:15px", text: "Everyone" }),
+    el("p", { class: "hint", text: "New sign-ups wait here with no access unless they used a joining code. Employee: their own attendance, leave, travel, reviews and payslips. Manager: also approves their team." }),
+    el("div", { style: "overflow:auto" }, el("table", null, el("thead", null, el("tr", null, el("th", { text: "Name" }), el("th", { text: "Email" }), el("th", { text: "Signed up" }), el("th", { text: "Access" }))), el("tbody", null, ...rows))),
+    msg);
   dlg.append(card); document.body.append(dlg);
 }
 
@@ -1709,7 +1760,7 @@ const ROLE_INFO = {
   admin:    { name:"Admin console", desc:"Everyone across Atraski and At Buzz: live status, approvals, payroll summary, people, structure and policy." },
   manager:  { name:"Manager view",  desc:"Your team's attendance today, their requests and their monthly summary." },
   employee: { name:"Employee view", desc:"Punch in, apply for leave or WFH, and track your month against the Atraski SOP." } };
-function realRole(){ if (S.owner || S.hr) return "admin"; if (S.admin) return roleOf(S.uid) === "admin" ? "admin" : "manager"; const r0 = roleOf(S.uid); return r0 === "finance" ? "employee" : r0; }
+function realRole(){ if (S.owner || S.hr || S.hrTeam) return "admin"; if (S.admin) return roleOf(S.uid) === "admin" ? "admin" : "manager"; const r0 = roleOf(S.uid); return r0 === "finance" ? "employee" : r0; }
 function effRole(){ const rr = realRole(); return rr === "admin" && S.viewAs.role ? S.viewAs.role : rr; }
 function mgrId(){ return S.viewAs.role === "manager" && S.viewAs.mgr ? S.viewAs.mgr : S.uid; }
 function teamIds(){ return Object.keys(S.team).filter(id => !(S.ppl[id] && S.ppl[id].exited)).sort((a,b) => nameOf(a).localeCompare(nameOf(b))); }
@@ -1743,7 +1794,7 @@ function renderRole(){
     }
     va.replaceChildren(...kids);
   }
-  if (S.uid) $("#meChip").replaceChildren(h("img", { src: S.me.avatarUrl, alt: "" }), h("span", { text: S.me.name || "You" }), h("span", { class:"pill rolepill", text: S.owner ? "CEO" : S.hr ? "HR" : S.finance && rr === "employee" ? "Finance" : cap(rr) }));
+  if (S.uid) $("#meChip").replaceChildren(h("img", { src: S.me.avatarUrl, alt: "" }), h("span", { text: S.me.name || "You" }), h("span", { class:"pill rolepill", text: S.owner ? "CEO" : S.hr ? "HR Coordinator" : S.hrTeam ? "HR team" : S.finHead && rr === "employee" ? "Finance Coordinator" : S.finance && rr === "employee" ? "Finance team" : cap(rr) }));
 }
 async function refreshNames(){
   if (!user) return;
@@ -3534,8 +3585,8 @@ function pcState(){
   return { k:"pending", label:"Waiting for finance", pill:"c-pending" };
 }
 function subPayCheck(){
-  if (!db || !(S.owner || S.finance)) return;
-  if (S.finance && !S.owner) {   // finance: watch every check, open the one waiting for them
+  if (!db || !(S.owner || S.finHead)) return;
+  if (S.finHead && !S.owner) {   // finance coordinator: watch every check, open the one waiting for them
     if (unsubPc) { S.pc = (S.pcAll || {})[S.prYM] || null; return; }
     unsubPc = db.collection("paycheck").onSnapshot(qs => { S.pcAll = {}; for (const d of qs.docs) S.pcAll[d.id] = d.data();
       if (!S.pcPicked) { const open = Object.keys(S.pcAll).filter(k => S.pcAll[k].sentAt && !(S.pcAll[k].fin && S.pcAll[k].fin.s === "approved")).sort().pop(); if (open) S.prYM = open; S.pcPicked = true; }
@@ -4056,7 +4107,7 @@ function lifeItems(){
 function inboxItems(){
   if (!canSeeTeam() && !S.finance) return [];
   const items = [...lifeItems()], role = effRole();
-  if (S.finance && !S.owner) for (const [ym, pc] of Object.entries(S.pcAll || {})) if (pc.sentAt && !(pc.fin && pc.fin.s === "approved"))
+  if (S.finHead && !S.owner) for (const [ym, pc] of Object.entries(S.pcAll || {})) if (pc.sentAt && !(pc.fin && pc.fin.s === "approved"))
     items.push({ cat:"pay", id: pc.sentBy, at: pc.sentAt, title:`Pay run · ${ymLabel(ym)} · check before payment`, sub:`${Object.keys(pc.rows || {}).length} people · ${inr(Object.values(pc.rows || {}).reduce((a, r) => a + (Number(r.total) || 0), 0))} total payout${pc.fin && pc.fin.s === "query" ? " · your queries are with the CEO" : ""}`, acts:[["Open pay run check", () => { S.prYM = ym; S.pc = pc; location.hash = "#payrun"; renderPayCheck(); }, "good"]] });
   if (!canSeeTeam()) {
     for (const id of Object.keys(S.team)) for (const t of tripsOf(id)) if (tripState(id, t).k === "fin")
@@ -4330,7 +4381,8 @@ function route(){
   const role = effRole();
   const allowed = role === "admin" ? ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs",...(canCirculate() && !S.viewAs.role ? ["life"] : []), "people","org", ...(S.owner && !S.viewAs.role ? ["payrun"] : []), "policy"] : role === "manager" ? ["home","inbox","me","travel","perf","payslips","onboard","team","directory","docs"] : ["home","inbox","me","travel","perf","payslips","onboard","directory","docs"];
   if (!S.payOn && !S.owner) { const i = allowed.indexOf("payslips"); if (i >= 0) allowed.splice(i, 1); }
-  if (S.finance && !S.owner && !S.viewAs.role && !allowed.includes("payrun")) allowed.splice(allowed.indexOf("directory"), 0, "payrun");
+  if (S.finHead && !S.owner && !S.viewAs.role && !allowed.includes("payrun")) allowed.splice(allowed.indexOf("directory"), 0, "payrun");
+  if (S.hrTeam && !S.viewAs.role) for (const v of ["people", "org", "policy"]) { const i = allowed.indexOf(v); if (i >= 0) allowed.splice(i, 1); }   // HR team: no employee records, structure or policy settings
   allowed.splice(allowed.indexOf("travel") + 1, 0, "loans", "help"); allowed.splice(allowed.indexOf("directory") + 1, 0, "engage");
   if (!S.viewAs.role && (role === "admin" || S.finance)) allowed.push("assets", "reports");
   let r = (location.hash || "").slice(1);
@@ -4370,7 +4422,7 @@ async function init(){
   const C = window.claude;
   if (!C || !C.use) { S.ready = true; renderAll(); return; }
   [db, user, downloads, assets, drv, acc] = await Promise.all([C.use("db"), C.use("user"), C.use("downloads"), C.use("assets"), C.use("drive"), C.use("access")]);
-  if (user) { S.me = await user.me(); S.uid = S.me.id; S.admin = await user.canEdit(); S.owner = await user.isOwner(); S.finance = (await user.can("finance")) === true; S.hr = (await user.can("hr")) === true; }
+  if (user) { S.me = await user.me(); S.uid = S.me.id; S.admin = await user.canEdit(); S.owner = await user.isOwner(); S.finance = (await user.can("finance")) === true; S.hr = (await user.can("hr")) === true; S.hrTeam = (await user.can("hr_team")) === true; S.finHead = (await user.can("finance_head")) === true; }
   S.ready = true;
   if (!db) { renderAll(); return; }
   const loadTimer = setTimeout(() => { S.stale = true; renderBanners(); }, 10000);
@@ -4411,7 +4463,7 @@ async function init(){
     subCur();
   }
   if (S.admin || S.finance) db.collection("finance").onSnapshot(qs => { S.finDec = {}; for (const d of qs.docs) S.finDec[d.id] = d.data(); renderAll(); }, () => {});
-  if (S.owner || S.finance) subPayCheck();
+  if (S.owner || S.finHead) subPayCheck();
   document.addEventListener("input", e => { if (e.target && e.target.id === "arcQ") renderArchive(true); });
   document.addEventListener("input", e => { if (e.target && e.target.id === "phQ") renderPayHist(); });
   document.addEventListener("change", e => { if (e.target && e.target.id === "phCur") renderPayHist(); });

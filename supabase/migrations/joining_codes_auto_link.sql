@@ -4,3 +4,9 @@
 -- private.handle_new_user(): a sign-up whose metadata carries a valid unused join_code
 -- is approved (member, or admin for managers) and linked to that record via private.link_core().
 -- public.link_member() keeps the CEO's manual link and now shares private.link_core().
+
+-- Migration "department_coordinators_and_teams":
+-- roles hr (HR Coordinator) / hr_team, finance (Finance Coordinator) / finance_team.
+-- hr_team: level 3 (company-wide attendance and approvals) but not is_hr (no documents, hiring, exits, archive).
+-- finance_team: is_finance (claims, invoices) but not is_fin_head (no pay-run check, no loan records).
+-- Only the CEO can grant/remove these roles; naming a new coordinator moves the previous one to the team.
