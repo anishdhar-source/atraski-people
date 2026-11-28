@@ -288,7 +288,7 @@ async function openAccess(){
 const drive = {
   async call(body){
     const { data } = await sb.auth.getSession(); const tok = data && data.session && data.session.access_token;
-    const fn = ["letter_accept", "appraisal", "digest", "registers", "share_hr", "migrate"].includes(body && body.op) ? "drive2" : "drive";
+    const fn = ["letter_accept", "appraisal", "digest", "registers", "share_hr", "migrate"].includes(body && body.op) ? "drive2" : ["create_login", "set_password"].includes(body && body.op) ? "accounts" : "drive";
     const r = await fetch(SB_URL + "/functions/v1/" + fn, { method: "POST", headers: { "Content-Type": "application/json", apikey: SB_KEY, ...(tok ? { Authorization: "Bearer " + tok } : {}) }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || j.ok === false) throw new Error(j.error || ("The server answered " + r.status));
@@ -817,6 +817,7 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
   <!-- PEOPLE -->
   <section id="v-people" class="stack" hidden>
     <div class="panel stack">
+      <div id="loginNote" hidden></div>
       <div class="row between"><div><span class="eyebrow">Admin</span><h2>People</h2></div><div class="row" id="inviteBar" hidden><span class="muted" id="inviteSum" style="font-size:13px"></span><button class="btn sm primary" type="button" id="inviteAll">Copy all invites</button></div></div>
       <p class="muted" style="margin:0;font-size:13px;max-width:80ch">Each person's HR record decides their leave entitlement, WFH eligibility and approver. Picking a position fills in the employee type and probation from the HR Master. Give managers and HR <b>Manager / HR</b> access from the <b>Access</b> button; everyone else gets <b>Employee</b>.</p>
       <div class="tbl-wrap"><table class="ppl" style="min-width:1250px">
@@ -2259,7 +2260,7 @@ function renderPeople(){
     const save = patch => savePerson(id, patch);
     const posOpts = [["", "Not set"], ...POS.filter(x => !p.dept || x.dept === p.dept).map(x => [x.pos, x.pos])];
     return h("tr", null,
-      h("td", null, h("div", { style:"display:flex;gap:8px;align-items:center" }, avatar(id), h("div", null, h("div", { style:"font-weight:600", text: nameOf(id) + (isMe ? " (you)" : "") }), h("div", { class:"meta muted", text: p.jobTitle || (rootOf(id) && rootOf(id).title) || "" }), p.prefilled && /^e_/.test(id) ? linkBox(id) : null))),
+      h("td", null, h("div", { style:"display:flex;gap:8px;align-items:center" }, avatar(id), h("div", null, h("div", { style:"font-weight:600", text: nameOf(id) + (isMe ? " (you)" : "") }), h("div", { class:"meta muted", text: p.jobTitle || (rootOf(id) && rootOf(id).title) || "" }), p.prefilled && /^e_/.test(id) ? linkBox(id) : (!isMe && !p.shared && canCirculate() ? pwBox(id) : null)))),
       h("td", null, inp("Employee code", p.code, "text", v => save({ code: v.trim().slice(0, 20) }), { style:"width:90px" })),
       h("td", null, sel("Company", companyOf(id), [["Atraski","Atraski"],["At Buzz","At Buzz"]], v => save({ company: v }))),
       h("td", null, sel("Base office", p.base, [["", "Not set"], ...(P.offices || []).map(o => [o.id, o.n.split(" · ")[0]])], v => save({ base: v || null }))),
@@ -3072,7 +3073,46 @@ function renderInviteBar(){
   $("#inviteSum").textContent = `${ids.length} people still to sign up`;
   $("#inviteAll").onclick = () => copyText(ids.map(id => `— ${nameOf(id)} —\n${inviteText(id)}`).join("\n\n"), `${ids.length} invites copied. Paste each one to that person on WhatsApp or email.`);
 }
+// ---------- logins made by the CEO or HR Coordinator ----------
+const suggestPw = () => { const a = "abcdefghjkmnpqrstuvwxyz", A = "ABCDEFGHJKLMNPQRSTUVWXYZ", d = "23456789", r = n => { const u = new Uint32Array(1); crypto.getRandomValues(u); return u[0] % n; };
+  return A[r(A.length)] + Array.from({ length: 5 }, () => a[r(a.length)]).join("") + "@" + Array.from({ length: 4 }, () => d[r(d.length)]).join(""); };
+function showLoginNote(name, email, pw, what){
+  const box = $("#loginNote"); if (!box) return;
+  const text = `Atraski People login for ${name}\nLink: ${APP_URL}\nEmail: ${email}\nPassword: ${pw}\nPlease sign in, punch in from Monday and change your password if you like.`;
+  box.hidden = false;
+  box.replaceChildren(h("div", { class:"banner", style:"background:var(--wfh-bg);display:grid;gap:6px" },
+    h("b", { text: `${what} for ${name}` }),
+    h("div", { class:"mono", style:"white-space:pre-wrap;font-size:13px;user-select:all", text: `Email: ${email}\nPassword: ${pw}` }),
+    h("div", { class:"row" }, h("button", { class:"btn sm primary", type:"button", text:"Copy login details", onclick: () => copyText(text, "Login details copied. Send them to the person.") }),
+      h("button", { class:"btn sm", type:"button", text:"Hide", onclick: () => { box.hidden = true; box.replaceChildren(); } })),
+    h("div", { class:"meta", text:"The password isn't stored anywhere you can see again. Copy it now; you can always set a new one with Reset password." })));
+  box.scrollIntoView({ behavior:"smooth", block:"start" });
+}
+function loginForm(id){
+  S.emSug = S.emSug || {}; S.pwSug = S.pwSug || {}; const p = person(id), em = h("input", { type:"email", "aria-label":"Login email", placeholder:"Login email", value: S.emSug[id] ?? (p.workEmail || ""), oninput: e => S.emSug[id] = e.target.value, style:"max-width:220px;font-size:12px;padding:5px 8px" });
+  const pw = h("input", { type:"text", "aria-label":"Password", value: S.pwSug[id] = S.pwSug[id] || suggestPw(), oninput: e => S.pwSug[id] = e.target.value, style:"max-width:140px;font-size:12px;padding:5px 8px;font-family:var(--f-mono)" });
+  const go = h("button", { class:"btn sm primary", type:"button", text:"Create login", onclick: async () => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em.value.trim())) { toast("Enter a valid email."); em.focus(); return; }
+    if (pw.value.length < 8) { toast("Use a password of at least 8 characters."); pw.focus(); return; }
+    go.disabled = true;
+    try { const r = await drv.call({ op:"create_login", pre: id, email: em.value.trim(), password: pw.value });
+      showLoginNote(nameOf(id), r.email, pw.value, "Login created"); toast(`${nameOf(id)} can sign in now.`); }
+    catch (e) { go.disabled = false; toast("Couldn't create the login: " + (e.message || e)); } } });
+  return h("div", { class:"row", style:"gap:6px;margin-top:4px;flex-wrap:wrap" }, em, pw, go);
+}
+function pwBox(id){
+  const open = S.pwOpen === id;
+  if (!open) return h("button", { class:"btn sm", type:"button", style:"margin-top:4px", text:"Reset password", onclick: () => { S.pwOpen = id; renderPeople(); } });
+  S.pwSug = S.pwSug || {}; const pw = h("input", { type:"text", "aria-label":"New password", value: S.pwSug["r" + id] = S.pwSug["r" + id] || suggestPw(), oninput: e => S.pwSug["r" + id] = e.target.value, style:"max-width:140px;font-size:12px;padding:5px 8px;font-family:var(--f-mono)" });
+  const go = h("button", { class:"btn sm primary", type:"button", text:"Set password", onclick: async () => {
+    if (pw.value.length < 8) { toast("Use a password of at least 8 characters."); return; }
+    go.disabled = true;
+    try { const r = await drv.call({ op:"set_password", uid: id, password: pw.value }); S.pwOpen = null; renderPeople(); showLoginNote(nameOf(id), r.email || person(id).workEmail || "", pw.value, "New password set"); }
+    catch (e) { go.disabled = false; toast("Couldn't set the password: " + (e.message || e)); } } });
+  return h("div", { class:"row", style:"gap:6px;margin-top:4px" }, pw, go, h("button", { class:"btn sm", type:"button", text:"Cancel", onclick: () => { S.pwOpen = null; renderPeople(); } }));
+}
 function linkBox(id){
+  if (S.hr && !S.owner) return h("div", null, h("span", { class:"pill c-pending", text:"Not signed up yet" }), loginForm(id));
   if (!S.owner) return h("div", { class:"meta", style:"color:var(--warn,#9a6700)", text:"Not signed up yet" });
   if (!S.joinCodes) loadJoinCodes();
   const jc = S.joinCodes && S.joinCodes[id];
@@ -3085,7 +3125,7 @@ function linkBox(id){
   const inv = jc ? h("div", { class:"row", style:"gap:6px;margin-top:4px;flex-wrap:nowrap" }, h("span", { class:"meta", text:"Joining code" }), h("b", { class:"mono", style:"letter-spacing:.1em;user-select:all", text: jc.code }),
     h("button", { class:"btn sm primary", type:"button", text:"Copy invite", onclick: () => copyText(inviteText(id), `Invite for ${nameOf(id)} copied. Send it on WhatsApp or email.`) }),
     h("button", { class:"btn sm", type:"button", text:"New code", title:"Make a new code if the old one was shared by mistake", onclick: async () => { try { const c = await drv.rpc("join_code_reset", { p_pre: id }); S.joinCodes[id] = { pre:id, code:c, used:false }; toast(`New code for ${nameOf(id)}: ${c}`); renderPeople(); } catch (e) { toast("Couldn't make a new code: " + (e.message || e)); } } })) : null;
-  return h("div", null, inv, h("div", { class:"row", style:"gap:6px;margin-top:4px;flex-wrap:nowrap" }, h("span", { class:"pill c-pending", text:"Not signed up yet" }), sel,
+  return h("div", null, inv, loginForm(id), h("div", { class:"row", style:"gap:6px;margin-top:4px;flex-wrap:nowrap" }, h("span", { class:"pill c-pending", text:"Not signed up yet" }), sel,
     h("button", { class:"btn sm", type:"button", text:"Link", onclick: async e => {
       if (!sel.value) { toast("Pick the account they signed up with."); return; }
       if (!confirm(`Link ${nameOf(id)}'s record, salary and Drive folder to ${sel.selectedOptions[0].textContent}?`)) return;
