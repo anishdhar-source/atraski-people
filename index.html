@@ -1612,8 +1612,18 @@ function stageText(r){
 }
 
 // ---------- entitlement & balances ----------
+// Opening balances: person.openBal = { asOf, cl, sl, el, bereavement, src } carried over from greytHR.
+// From that date the portal adds the normal monthly credit on top and counts only leave taken after it.
+const openBalOf = id => { const ob = person(id).openBal; return ob && ob.asOf && ob.asOf >= lyStart(S.today) && ob.asOf <= S.today ? ob : null; };
 function entitlement(id){
-  const p = person(id), et = etypeOf(id), j = joinOf(id), today = S.today, ys = lyStart(today), ber = Number(P.quota.bereavement ?? 3);
+  const now = entitlementAt(id, S.today), ob = openBalOf(id);
+  if (!ob) return now;
+  const then = entitlementAt(id, ob.asOf), out = { ...now };
+  for (const t of ["cl", "sl", "el", "bereavement"]) if (ob[t] != null) out[t] = Math.round((Math.max(0, Number(ob[t]) || 0) + Math.max(0, (now[t] || 0) - (then[t] || 0))) * 100) / 100;
+  return out;
+}
+function entitlementAt(id, today){
+  const p = person(id), et = etypeOf(id), j = joinOf(id), ys = lyStart(today), ber = Number(P.quota.bereavement ?? 3);
   if (v4(today)) {   // ATR-HR-03 v4.0
     const start = j && j > ys ? j : ys, m = mIncl(start, today), out = { cl: Math.min(V4.cl, m), sl: 0, bereavement: ber };
     if (et === "intern") { out.sl = Math.min(12, m); return out; }                         // 1 CL + 1 SL a month, no EL
@@ -1641,14 +1651,14 @@ function isLeader(id){
 }
 function isConfirmed(id){ return etypeOf(id) === "employee" && !isProvisional(id); }
 function leaveUsed(id, skipDebit){
-  const used = {}, pend = {}, y0 = lyStart(S.today), y1 = lyEnd(S.today);
+  const used = {}, pend = {}, ob = openBalOf(id), y0 = ob ? addDays(ob.asOf, 1) : lyStart(S.today), y1 = lyEnd(S.today);
   for (const r of reqList(rootOf(id), decOf(id))) {
     if (!isLeave(r) || (r.status !== "approved" && r.status !== "pending")) continue;
     const t = pool(lt(r), r.from), bucket = r.status === "approved" ? used : pend, days = leaveDays(r, id), paid = paidOf(r);
     days.forEach((ds, i) => { if (ds >= y0 && ds <= y1) { const amt = r.kind === "half" ? Math.min(.5, paid) : (i < paid ? 1 : 0); bucket[t] = (bucket[t]||0) + amt; } });
   }
   // short-day hours taken from leave when a pay run was locked (ATR-HR-02 §4)
-  for (const [k, v] of Object.entries(decOf(id) || {})) if (k.startsWith("debit_") && k !== skipDebit && k.slice(6, 10) === y0.slice(0, 4) && v) { used.cl = (used.cl||0) + (Number(v.cl)||0); used.el = (used.el||0) + (Number(v.el)||0); }
+  for (const [k, v] of Object.entries(decOf(id) || {})) if (k.startsWith("debit_") && k !== skipDebit && k.slice(6, 10) === y1.slice(0, 4) && (!ob || k.slice(6) > ob.asOf.slice(0, 7)) && v) { used.cl = (used.cl||0) + (Number(v.cl)||0); used.el = (used.el||0) + (Number(v.el)||0); }
   return { used, pend };
 }
 function leaveLeft(id, skipDebit){ const ent = entitlement(id), { used, pend } = leaveUsed(id, skipDebit), f = t => Math.max(0, (ent[t]||0) - (used[t]||0) - (pend[t]||0)); return { cl: f("cl"), el: ent.el != null ? f("el") : 0 }; }
@@ -1894,7 +1904,7 @@ function renderReqs(){
   // balances
   const ent = entitlement(S.uid), { used, pend } = leaveUsed(S.uid);
   $("#balTitle").textContent = `Leave balance · ${fyLabel(S.today)}`;
-  $("#balNote").textContent = ETYPE[etypeOf(S.uid)] + (etypeOf(S.uid) === "employee" ? " · EL builds up 1.25 a month" : "") + (v4() ? " · ATR-HR-03 v4.0" : "");
+  $("#balNote").textContent = ETYPE[etypeOf(S.uid)] + (etypeOf(S.uid) === "employee" ? " · EL builds up 1.25 a month" : "") + (v4() ? " · ATR-HR-03 v4.0" : "") + (openBalOf(S.uid) ? ` · opening balance from ${openBalOf(S.uid).src || "greytHR"} on ${dLong(openBalOf(S.uid).asOf)}` : "");
   const cards = Object.keys(ent).map(t => h("div", { class:"bal" },
     h("div", { class:"eyebrow", text: ltShort(t) }), h("b", { text: num1(Math.max(0, ent[t] - (used[t]||0))) }), h("span", { class:"muted", text: ` of ${num1(ent[t])} left` }),
     pend[t] ? h("div", { class:"meta muted", style:"font-size:12px", text: `${num1(pend[t])} pending` }) : null));
