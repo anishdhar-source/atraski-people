@@ -1196,6 +1196,7 @@ tbody tr[aria-selected="true"] td{background:var(--office-bg)}
       <div class="fgrid">
         <label class="f">Office location (GPS)<select id="pGeo"><option value="off">Don't check</option><option value="record">Record it and flag punches outside the office</option><option value="require">Block office punch-ins outside the office radius</option></select></label>
         <label class="chk" style="align-self:end"><input type="checkbox" id="pSelfie"> Take a selfie at punch-in</label>
+        <label class="f">Attendance counts from (go-live)<input type="date" id="pLiveFrom"></label>
       </div>
       <p class="muted" style="margin:0;font-size:12.5px">Set each office's location below (stand in the office and press "Set to where I am"). Client-site and WFH punches are recorded but never blocked.</p>
       <div><span class="eyebrow">Office locations people can punch in from</span></div>
@@ -1676,6 +1677,8 @@ const wfhMonthCount = (id, ds) => wfhCount(id, d => ymOf(d) === ymOf(ds));
 
 // ---------- day evaluation ----------
 function worked(rec, now){ let t = 0; for (const s of (rec && rec.s) || []) { if (s.o) t += s.o - s.i; else if (now) t += now - s.i; } return t; }
+// Attendance counts from the portal's go-live date, or the day the person joined the portal if later.
+const trackStart = id => { const a = P.liveFrom || null, b = (person(id) || {}).trackFrom || null; return a && b ? (a > b ? a : b) : (a || b); };
 function evalDay(ds, rec, appr, joined, id){
   const today = S.today, off = offReason(ds, id), sess = (rec && rec.s) || [], has = sess.length > 0;
   const open = sess.some(s => !s.o), isToday = ds === today;
@@ -1701,6 +1704,7 @@ function evalDay(ds, rec, appr, joined, id){
   }
   if (!has) {
     if (joined && ds < joined) return { ...base, code:"upcoming", label:"" };
+    { const ts = trackStart(id); if (ts && ds < ts) return { ...base, code:"upcoming", label: ds < today ? "Before Atraski People" : "" }; }
     if (ds < today) return { ...base, code:"absent", label:"Absent · LWP", lwp:1 };
     if (isToday) return { ...base, code:"pending", label:"Not punched in" };
     return { ...base, code:"upcoming", label:"" };
@@ -3139,7 +3143,7 @@ const getPath = (o, p) => p.split(".").reduce((a, k) => a && a[k], o);
 function fillPolicy(force){
   if (policyDirty && !force) return;
   for (const [sel, path] of POL_FIELDS) $(sel).value = getPath(P, path);
-  $("#pAltSat").checked = !!P.altSat; $("#pGeo").value = P.geo || "record"; $("#pSelfie").checked = P.selfie !== false;
+  $("#pAltSat").checked = !!P.altSat; $("#pGeo").value = P.geo || "record"; $("#pSelfie").checked = P.selfie !== false; $("#pLiveFrom").value = P.liveFrom || "";
   $("#pWeek").replaceChildren(...DOW.map((d, i) => h("label", { class:"chk" }, h("input", { type:"checkbox", id:"pw" + i, checked: (P.weekOff||[]).includes(i) }), d)));
   $("#pWfh").replaceChildren(...DOW.map((d, i) => h("label", { class:"chk" }, h("input", { type:"checkbox", id:"pwf" + i, checked: (P.wfhDays||[]).includes(i) }), d)));
   draftHol = clone(P.holidays || []); renderHol();
@@ -3160,7 +3164,7 @@ async function savePolicy(){
   }
   np.weekOff = DOW.map((_, i) => i).filter(i => $("#pw" + i).checked);
   np.wfhDays = DOW.map((_, i) => i).filter(i => $("#pwf" + i).checked);
-  np.altSat = $("#pAltSat").checked; np.geo = $("#pGeo").value; np.selfie = $("#pSelfie").checked; np.holidays = draftHol; np.offices = draftOff; np.updatedAt = Date.now();
+  np.altSat = $("#pAltSat").checked; np.geo = $("#pGeo").value; np.selfie = $("#pSelfie").checked; np.liveFrom = $("#pLiveFrom").value || null; np.holidays = draftHol; np.offices = draftOff; np.updatedAt = Date.now();
   if (np.halfHours > np.fullHours) { $("#pMsg").textContent = "Half-day hours can't be more than full-day hours."; return; }
   try { await db.doc("config/policy").set(np); policyDirty = false; $("#pMsg").textContent = ""; toast("Policy saved"); }
   catch (e) { $("#pMsg").textContent = "Couldn't save. Only admins can change the policy."; }
